@@ -4,6 +4,8 @@
 *.iws
 *.ipr
 out/
+.vscode/
+.IntelliJPlatform/
 
 # Gradle
 .gradle/

@@ -23,24 +23,5 @@
                          level="WARNING"
                          shortName="ApiMsgIdInspection"
                          implementationClass="com.cathaybk.codingassistant.inspection.ApiMsgIdInspection"/>
-                         
-        <!-- 添加Service關聯檢查器 -->
-        <localInspection language="JAVA" 
-                         displayName="Service關聯檢查" 
-                         groupName="CathayBk規範檢查" 
-                         enabledByDefault="true" 
-                         level="WARNING"
-                         shortName="ServiceLinkInspection"
-                         implementationClass="com.cathaybk.codingassistant.inspection.ServiceLinkInspection"/>
     </extensions>
-
-    <actions>
-        <!-- 添加生成相關代碼的Action -->
-        <action id="com.cathaybk.codingassistant.actions.GenerateApiStructureAction" 
-                class="com.cathaybk.codingassistant.actions.GenerateApiStructureAction" 
-                text="生成API結構" 
-                description="生成API相關的Service和實現類">
-            <add-to-group group-id="GenerateGroup" anchor="last"/>
-        </action>
-    </actions>
 </idea-plugin>
