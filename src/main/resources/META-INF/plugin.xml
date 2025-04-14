@@ -11,6 +11,8 @@
     - 提供程式碼規範檢查並顯示警告
     ]]></description>
 
+    <idea-version since-build="231" until-build="243.*"/>
+
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.java</depends>
 

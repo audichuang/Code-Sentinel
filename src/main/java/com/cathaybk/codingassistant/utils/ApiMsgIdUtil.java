@@ -45,7 +45,7 @@ public class ApiMsgIdUtil {
      *     <li>或者：M-BANK-USR 行動銀行使用者查詢</li>
      * </ul>
      */
-    public static final Pattern API_ID_PATTERN = Pattern.compile("([A-Za-z0-9]+-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*\\s+.+)");
+    public static final Pattern API_ID_PATTERN = Pattern.compile("([A-Za-z0-9]+(?:-[A-Za-z0-9]+)+\\s+.+)");
 
     /**
      * 判斷方法是否為 API 方法（被Mapping註解標記的方法）
@@ -113,24 +113,49 @@ public class ApiMsgIdUtil {
     }
 
     /**
-     * 判斷一個類是否是 Service 接口
+     * 判斷一個類別是否是 Service 介面
      *
-     * <p>判斷依據：</p>
-     * <p>1. 是否為接口</p>
-     * <p>2. 類名是否以 "Service" 或 "Svc" 結尾</p>
+     * <p>判斷依據（滿足任一條件即可）：</p>
+     * <p>1. 是否為介面</p>
+     * <p>2. 類別名稱是否以 "Service" 或 "Svc" 結尾 (忽略大小寫)</p>
+     * <p>3. 類別的完整限定名稱是否包含 ".service." 或 ".svc." (忽略大小寫)</p>
+     *    <p><b>注意：</b>此方式較為簡單，但可能無法識別頂層套件（如 com.abc.service.MyService）
+     *    且可能誤判包含類似名稱的其他套件（如 com.abc.customerservice.MyInterface）。</p>
      *
-     * @param psiClass 要檢查的類
-     * @return 如果是 Service 接口則返回 true，否則返回 false
+     * @param psiClass 要檢查的類別
+     * @return 如果是 Service 介面則返回 true，否則返回 false
      */
     public static boolean isServiceInterface(PsiClass psiClass) {
+        // 基本條件：必須是 non-null 且是介面
         if (psiClass == null || !psiClass.isInterface()) {
             return false;
         }
 
+        // --- 條件一：檢查類別名稱 ---
         String className = psiClass.getName();
-        return StringUtils.isNotEmpty(className) &&
-                (StringUtils.endsWith(className, "Service") ||
-                        StringUtils.endsWith(className, "Svc"));
+        if (StringUtils.isNotEmpty(className)) {
+            // 使用 equalsIgnoreCase 讓判斷對大小寫不敏感，更穩健
+            String upperClassName = className.toUpperCase();
+            if (upperClassName.endsWith("SERVICE") || upperClassName.endsWith("SVC")) {
+                return true; // 類別名稱符合，直接返回 true
+            }
+        }
+
+        // --- 條件二：檢查套件名稱 (簡化版) ---
+        // 獲取完整的限定名稱，例如 com.cathaybk.myapp.service.UserService
+        String qualifiedName = psiClass.getQualifiedName();
+        if (StringUtils.isNotEmpty(qualifiedName)) {
+            // 轉換為小寫，方便比較
+            String lowerQualifiedName = qualifiedName.toLowerCase();
+
+            // 檢查是否包含 ".service." 或 ".svc."
+            if (lowerQualifiedName.contains(".service.") || lowerQualifiedName.contains(".svc.")) {
+                return true; // 套件名稱符合，返回 true
+            }
+        }
+
+        // 如果以上條件都不滿足，則返回 false
+        return false;
     }
 
     /**
@@ -327,8 +352,7 @@ public class ApiMsgIdUtil {
      */
     private static void checkControllerMethod(PsiMethod method, PsiClass serviceClass, Map<String, String> result) {
         // 檢查方法是否在Controller中
-        PsiClass containingClass = method.getContainingClass();
-        if (containingClass == null || !isControllerClass(containingClass)) {
+        if (!isControllerClass(method.getContainingClass())) {
             return;  // 不是Controller類，跳過
         }
 
