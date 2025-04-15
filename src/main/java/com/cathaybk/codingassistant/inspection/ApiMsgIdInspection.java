@@ -1,5 +1,6 @@
 package com.cathaybk.codingassistant.inspection;
 
+import com.cathaybk.codingassistant.utils.AddApiIdDocFix;
 import com.cathaybk.codingassistant.utils.AddControllerApiIdFromServiceFix;
 import com.cathaybk.codingassistant.utils.AddServiceApiIdQuickFix;
 import com.cathaybk.codingassistant.utils.ApiMsgIdUtil;
@@ -7,40 +8,38 @@ import com.intellij.codeInspection.*;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
 import com.intellij.psi.javadoc.PsiDocComment;
-import com.intellij.psi.search.searches.ClassInheritorsSearch;
+import com.intellij.psi.util.InheritanceUtil;
 import com.intellij.psi.util.PsiTreeUtil;
-import com.intellij.util.IncorrectOperationException;
-import com.intellij.util.Query;
+import com.intellij.psi.util.PsiUtil;
+import com.intellij.util.IncorrectOperationException; // 保留，因為 AddApiIdDocFix 可能拋出
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.regex.Matcher;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 檢查API方法和Service類的電文代號註解
- *
- * <p>本檢查器用於確保代碼符合以下規範：</p>
+ * API 電文代號檢查器。
+ * <p>
+ * 此檢查器用於驗證專案中的 Java 程式碼是否符合電文代號 (ApiMsgId) 的 Javadoc 註解規範。
+ * 主要檢查兩種類型的元素：
+ * </p>
  * <ol>
- *     <li>所有API方法（被RequestMapping等註解標記的方法）都有正確格式的電文代號註解</li>
- *     <li>所有Service類都有關聯的Controller電文代號註解</li>
+ *     <li><b>Controller API 方法：</b> 確保被 Spring Web Mapping 註解 (如 {@code @GetMapping}) 標記的方法，
+ *         其 Javadoc 包含符合 {@link ApiMsgIdUtil#API_ID_PATTERN} 格式的電文代號。
+ *         如果缺少，會嘗試從該方法內部使用的 Service 類別中尋找關聯的電文代號作為快速修復建議。</li>
+ *     <li><b>Service 類別 (接口與實現)：</b> 確保被識別為 Service 的類別 (基於命名慣例、包結構或 {@code @Service} 註解)，
+ *         其 Javadoc 包含有效的電文代號。如果缺少，會嘗試從使用該 Service 的 Controller API 方法、
+ *         或其關聯的接口/實現類中尋找電文代號作為快速修復建議。</li>
  * </ol>
- *
- * <p>電文代號格式: XXX-X-XXXX 說明文字，例如 SYS-T-USER_LOGIN 使用者登入</p>
- *
- * <p>檢查過程：</p>
- * <ul>
- *     <li>對於API方法：檢查Javadoc是否包含電文代號</li>
- *     <li>對於Service類：查找使用此Service的Controller，並將其電文代號關聯到Service</li>
- * </ul>
+ * <p>
+ * 電文代號格式範例： {@code API-ORDER-CREATE 建立訂單}
+ * </p>
  */
 public class ApiMsgIdInspection extends AbstractBaseJavaLocalInspectionTool {
 
     /**
-     * 取得檢查器的簡稱
-     *
-     * @return 檢查器簡稱
+     * @return 檢查器的短名稱，用於內部標識。
      */
     @NotNull
     @Override
@@ -49,9 +48,7 @@ public class ApiMsgIdInspection extends AbstractBaseJavaLocalInspectionTool {
     }
 
     /**
-     * 取得檢查器的顯示名稱
-     *
-     * @return 檢查器顯示名稱
+     * @return 顯示在 IntelliJ IDEA 設定和問題描述中的檢查器名稱。
      */
     @NotNull
     @Override
@@ -60,9 +57,7 @@ public class ApiMsgIdInspection extends AbstractBaseJavaLocalInspectionTool {
     }
 
     /**
-     * 取得檢查器所屬的分組名稱
-     *
-     * @return 分組名稱
+     * @return 此檢查器所屬的分組名稱，顯示在 IntelliJ IDEA 設定中。
      */
     @NotNull
     @Override
@@ -71,310 +66,197 @@ public class ApiMsgIdInspection extends AbstractBaseJavaLocalInspectionTool {
     }
 
     /**
-     * 構建訪問者模式，用於檢查類
+     * 建立並返回一個 {@link PsiElementVisitor} 實例，用於訪問和檢查 Java 程式碼元素。
+     * <p>
+     * 此 Visitor 會覆寫 {@code visitMethod} 和 {@code visitClass} 方法，
+     * 分別處理 Controller API 方法和 Service 類別的檢查邏輯。
+     * </p>
      *
-     * <p>這個方法用於檢查Service類是否有相關的電文代號註解</p>
-     * <p>檢查過程：</p>
-     * <ol>
-     *     <li>確認是否為Service類</li>
-     *     <li>檢查類的Javadoc中是否已包含電文代號</li>
-     *     <li>如果沒有，查找使用此Service的Controller及其電文代號</li>
-     *     <li>如果是實現類，嘗試檢查其接口</li>
-     * </ol>
-     *
-     * @param holder 用於註冊問題的容器
-     * @param isOnTheFly 是否是即時檢查
-     * @return PsiElementVisitor實例
+     * @param holder     用於註冊檢查到的問題 (Problems) 的容器。
+     * @param isOnTheFly 指示檢查是否在用戶輸入時即時運行。
+     * @return 一個配置好的 {@link JavaElementVisitor}。
      */
     @NotNull
     @Override
     public PsiElementVisitor buildVisitor(@NotNull ProblemsHolder holder, boolean isOnTheFly) {
         return new JavaElementVisitor() {
 
+            /**
+             * 訪問 Java 方法。主要用於檢查 Controller API 方法。
+             *
+             * @param method 當前訪問的 {@link PsiMethod}。
+             */
             @Override
-            public void visitMethod(PsiMethod method) {
-                // 檢查是否是API方法
+            public void visitMethod(@NotNull PsiMethod method) {
+                // 1. 判斷是否為我們關心的 API 方法
                 if (!ApiMsgIdUtil.isApiMethod(method)) {
-                    return;  // 不是API方法，跳過
+                    return; // 不是 API 方法，直接跳過
                 }
 
-                // 檢查方法是否有正確的電文代號
-                if (!ApiMsgIdUtil.hasValidApiMsgId(method.getDocComment())) {
-                    // 沒有電文代號，檢查方法內使用的 Service
-                    Map<String, String> serviceApiIds = findServiceApiIdsFromMethod(method);
+                // 2. 檢查方法本身是否已有有效的電文代號 Javadoc
+                if (ApiMsgIdUtil.hasValidApiMsgId(method.getDocComment())) {
+                    return; // 已有有效 ID，無需處理
+                }
 
-                    if (!serviceApiIds.isEmpty()) {
-                        // 找到了相關 Service 的電文代號，提供快速修復
-                        holder.registerProblem(
-                                method.getNameIdentifier(),
-                                "API方法缺少正確的電文代號註解，可從使用的Service獲取",
-                                new AddControllerApiIdFromServiceFix(serviceApiIds));  // 使用專門為 Controller 方法設計的修復類
-                    } else {
-                        // 未找到相關 Service 的電文代號，提供默認快速修復
-                        holder.registerProblem(
-                                method.getNameIdentifier(),
-                                "API方法缺少正確的電文代號註解，格式應為: 電文代號 說明文字（如 API-001 登入服務）",
-                                new AddApiIdDocFix());
-                    }
+                // --- 如果 API 方法缺少有效的電文代號 ---
+
+                // 3. 嘗試查找此方法內部實際使用的 Service 及其關聯的電文代號
+                Map<String, String> serviceApiIds = findAndSuggestApiIdsFromUsedServices(method);
+
+                // --- 確定標記問題的位置 ---
+                // 優先使用方法名稱的標識符 (PsiIdentifier)
+                // 如果找不到標識符 (例如某些特殊構造的方法)，則將問題標記在方法元素本身
+                PsiElement problemElement = method.getNameIdentifier();
+                if (problemElement == null) {
+                    problemElement = method; // <<--- 修改點：直接使用 PsiMethod
+                }
+                // 確保 problemElement 不為 null (理論上 PsiMethod 不會是 null)
+                if (problemElement == null) return;
+
+
+                // 4. 根據是否找到來源 ID，註冊不同的問題和快速修復
+                if (!serviceApiIds.isEmpty()) {
+                    // 4.1 找到了至少一個來自 Service 的建議 ID
+                    LocalQuickFix[] fixes = serviceApiIds.entrySet().stream()
+                            .map(entry -> new AddControllerApiIdFromServiceFix(entry.getKey(), entry.getValue()))
+                            .toArray(LocalQuickFix[]::new);
+
+                    holder.registerProblem(
+                            problemElement, // <<--- 修改點：使用 problemElement
+                            "API 方法缺少有效的電文代號註解。找到可能的來源：" + String.join(", ", serviceApiIds.keySet()),
+                            ProblemHighlightType.WARNING,
+                            fixes);
+                } else {
+                    // 4.2 未找到任何來自 Service 的建議 ID，提供預設的添加模板修復
+                    holder.registerProblem(
+                            problemElement, // <<--- 修改點：使用 problemElement
+                            "API 方法缺少有效的電文代號註解 (格式: ID 描述)",
+                            ProblemHighlightType.WARNING,
+                            new AddApiIdDocFix());
                 }
             }
 
+            /**
+             * 訪問 Java 類別。主要用於檢查 Service 接口和實現類。
+             *
+             * @param aClass 當前訪問的 {@link PsiClass}。
+             */
             @Override
-            public void visitClass(PsiClass aClass) {
-                // 1. 判斷類型 - 是否為 Service 類，若不是則跳過
+            public void visitClass(@NotNull PsiClass aClass) {
+                // 1. 判斷是否為我們關心的 Service 類別
                 if (!ApiMsgIdUtil.isServiceClass(aClass)) {
-                    return;
+                    return; // 不是 Service 類，跳過
                 }
 
-                // 2. 如果已有電文代號，則跳過
+                // 2. 檢查類別本身是否已有有效的電文代號 Javadoc
                 if (ApiMsgIdUtil.hasValidApiMsgId(aClass.getDocComment())) {
-                    return;
+                    return; // 已有有效 ID，無需處理
                 }
 
-                // 3. 根據是 Service 接口還是實現類採取不同策略
-                Map<String, String> controllerApiIds = new HashMap<>();
+                // --- 如果 Service 類缺少有效的電文代號 ---
 
-                if (ApiMsgIdUtil.isServiceInterface(aClass)) {
-                    // 3.1 處理 Service 接口
-                    processServiceInterface(aClass, controllerApiIds);
-                } else if (ApiMsgIdUtil.isServiceImpl(aClass)) {
-                    // 3.2 處理 Service 實現類
-                    processServiceImplementation(aClass, controllerApiIds);
-                }
+                // 3. 查找與此 Service 關聯的最相關的電文代號來源
+                Map<String, String> sourceApiIds = ApiMsgIdUtil.findApiIdsForServiceClass(aClass);
 
-                // 4. 如果找到電文代號，則註冊問題
-                if (!controllerApiIds.isEmpty()) {
+                // 4. 如果找到了來源 ID，則註冊問題和快速修復
+                if (!sourceApiIds.isEmpty()) {
+                    // --- 確定標記問題的位置 ---
+                    PsiElement problemElement = aClass.getNameIdentifier();
+                    if (problemElement == null) {
+                        // 對於匿名類或特殊類，可能沒有名稱標識符
+                        // 嘗試標記在 'class' 關鍵字或類本身
+                        PsiKeyword classKeyword = PsiTreeUtil.getChildOfType(aClass, PsiKeyword.class);
+                        problemElement = (classKeyword != null && PsiKeyword.CLASS.equals(classKeyword.getText())) ? classKeyword : aClass; // <<--- 修改點
+                    }
+                    // 確保 problemElement 不為 null
+                    if (problemElement == null) return;
+
+                    // 目前 findApiIdsForServiceClass 設計為只返回一個最相關的來源
+                    Map.Entry<String, String> entry = sourceApiIds.entrySet().iterator().next();
+                    String sourceName = entry.getKey();
+                    String apiId = entry.getValue();
+
                     holder.registerProblem(
-                            aClass.getNameIdentifier() != null ? aClass.getNameIdentifier() : aClass,
-                            "Service類可能需要添加來自Controller的電文代號註解",
-                            new AddServiceApiIdQuickFix(controllerApiIds));
+                            problemElement, // <<--- 修改點：使用 problemElement
+                            "Service 類別缺少有效的電文代號註解。建議來源：" + sourceName,
+                            ProblemHighlightType.WARNING,
+                            new AddServiceApiIdQuickFix(sourceName, apiId));
                 }
             }
         };
     }
 
-    /**
-     * 處理 Service 接口的電文代號查找
-     *
-     * @param interfaceClass Service 接口
-     * @param result 結果映射
-     */
-    private void processServiceInterface(PsiClass interfaceClass, Map<String, String> result) {
-        // 1. 直接查找使用此接口的 Controller 方法
-        Map<String, String> directApiIds = ApiMsgIdUtil.findControllerApiIds(interfaceClass);
-        result.putAll(directApiIds);
-
-        // 2. 如果找不到，檢查實現此接口的所有實現類
-        if (result.isEmpty()) {
-            searchImplementationClasses(interfaceClass, result);
-        }
-    }
 
     /**
-     * 處理 Service 實現類的電文代號查找
+     * 查找給定 Controller 方法內部實際使用的 Service 類別，並獲取這些 Service 關聯的電文代號。
+     * <p>
+     * 此方法通過 PSI 分析方法體，識別出對 Service 類別實例的方法調用，
+     * 然後為每個識別出的 Service 類別調用 {@link ApiMsgIdUtil#findApiIdsForServiceClass}
+     * 來查找其最相關的電文代號。
+     * </p>
      *
-     * @param implClass Service 實現類
-     * @param result 結果映射
+     * @param controllerMethod 要分析的 Controller {@link PsiMethod}。
+     * @return 一個 Map，Key 是找到的電文代號的來源名稱 (例如，"UserServiceImpl" 或 "anotherControllerMethod")，
+     *         Value 是對應的電文代號字串。如果方法體內沒有使用 Service，或者使用的 Service 沒有關聯的電文代號，則返回空 Map。
      */
-    private void processServiceImplementation(PsiClass implClass, Map<String, String> result) {
-        // 1. 直接查找使用此實現類的 Controller 方法
-        Map<String, String> directApiIds = ApiMsgIdUtil.findControllerApiIds(implClass);
-        result.putAll(directApiIds);
-
-        // 2. 如果找不到，查找其實現的所有接口
-        if (result.isEmpty()) {
-            for (PsiClassType interfaceType : implClass.getImplementsListTypes()) {
-                PsiClass interfaceClass = interfaceType.resolve();
-                if (interfaceClass != null && ApiMsgIdUtil.isServiceInterface(interfaceClass)) {
-                    // 2.1 查找接口關聯的 Controller 電文代號
-                    Map<String, String> interfaceApiIds = ApiMsgIdUtil.findControllerApiIds(interfaceClass);
-                    result.putAll(interfaceApiIds);
-
-                    // 2.2 檢查接口本身的註解
-                    if (result.isEmpty() && ApiMsgIdUtil.hasValidApiMsgId(interfaceClass.getDocComment())) {
-                        String interfaceDocText = interfaceClass.getDocComment().getText();
-                        Matcher matcher = ApiMsgIdUtil.API_ID_PATTERN.matcher(interfaceDocText);
-                        if (matcher.find()) {
-                            String apiId = matcher.group(1);
-                            result.put(interfaceClass.getName(), apiId);
-                        }
-                    }
-
-                    if (!result.isEmpty()) {
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * 查找接口的所有實現類並檢查它們是否已有電文代號註解
-     *
-     * @param interfaceClass Service 接口
-     * @param result 結果映射
-     */
-    private void searchImplementationClasses(PsiClass interfaceClass, Map<String, String> result) {
-        Project project = interfaceClass.getProject();
-
-        // 查找所有實現此接口的類
-        Query<PsiClass> implementations = ClassInheritorsSearch.search(interfaceClass, true);
-        for (PsiClass implClass : implementations) {
-            if (ApiMsgIdUtil.isServiceImpl(implClass)) {
-                // 檢查實現類是否已經有電文代號註解
-                PsiDocComment docComment = implClass.getDocComment();
-                if (ApiMsgIdUtil.hasValidApiMsgId(docComment)) {
-                    // 提取實現類的電文代號並添加到結果中
-                    String docText = docComment.getText();
-                    Matcher matcher = ApiMsgIdUtil.API_ID_PATTERN.matcher(docText);
-                    if (matcher.find()) {
-                        String apiId = matcher.group(1);
-                        result.put(implClass.getName(), apiId);
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * 建立Controller方法的問題描述
-     *
-     * <p>創建一個警告級別的問題，並關聯AddApiIdDocFix快速修復</p>
-     *
-     * @param method 有問題的方法
-     * @param manager InspectionManager實例
-     * @param isOnTheFly 是否是即時檢查
-     * @return 問題描述
-     */
-    private ProblemDescriptor createControllerProblemDescriptor(PsiMethod method, InspectionManager manager, boolean isOnTheFly) {
-        return manager.createProblemDescriptor(
-                method.getNameIdentifier(),
-                "API方法缺少正確的電文代號註解，格式應為: 電文代號 說明文字（如 API-001 登入服務）",
-                new AddApiIdDocFix(),
-                ProblemHighlightType.WARNING,
-                isOnTheFly);
-    }
-
-
-    /**
-     * Controller方法的快速修復實現
-     *
-     * <p>提供為API方法添加電文代號Javadoc的快速修復功能</p>
-     */
-    private static class AddApiIdDocFix implements LocalQuickFix {
-        /**
-         * 取得修復的名稱
-         *
-         * @return 修復名稱
-         */
-        @NotNull
-        @Override
-        public String getName() {
-            return "添加電文代號註解";
-        }
-
-        /**
-         * 取得修復的族名稱
-         *
-         * @return 族名稱
-         */
-        @NotNull
-        @Override
-        public String getFamilyName() {
-            return getName();
-        }
-
-        /**
-         * 應用修復邏輯
-         *
-         * <p>為方法添加或更新包含電文代號的Javadoc註解</p>
-         *
-         * @param project 當前項目
-         * @param descriptor 問題描述
-         */
-        @Override
-        public void applyFix(@NotNull Project project, @NotNull ProblemDescriptor descriptor) {
-            try {
-                PsiElement element = descriptor.getPsiElement();
-                if (element == null) return;  // 安全檢查
-
-                // 獲取方法元素
-                PsiMethod method = (PsiMethod) element.getParent();
-
-                // 創建Javadoc註解
-                PsiElementFactory factory = JavaPsiFacade.getElementFactory(project);
-
-                // 使用工具類生成電文代號模板
-                String apiId = ApiMsgIdUtil.generateApiMsgId(method);
-
-                // 創建包含電文代號的Javadoc註解
-                PsiDocComment newDocComment = factory.createDocCommentFromText(
-                        "/**\n * " + apiId + " [請填寫API描述]\n */");
-
-                // 更新或添加註解：如果已存在就替換，否則添加新的
-                PsiDocComment existingComment = method.getDocComment();
-                if (existingComment != null) {
-                    // 替換現有註解
-                    existingComment.replace(newDocComment);
-                } else {
-                    // 在方法修飾符前添加新註解
-                    method.addBefore(newDocComment, method.getModifierList());
-                }
-            } catch (IncorrectOperationException e) {
-                // 忽略操作異常
-            }
-        }
-    }
-
-    /**
-     * 查找Controller方法中使用的Service及其電文代號
-     * 改進：保留具體的Service類名而非簡單的方法名，以便標示來源
-     *
-     * @param method Controller方法
-     * @return Service類名及其電文代號的映射
-     */
-    private Map<String, String> findServiceApiIdsFromMethod(PsiMethod method) {
-        Map<String, String> result = new HashMap<>();
-
-        // 檢查方法體是否存在
-        PsiCodeBlock body = method.getBody();
+    @NotNull
+    private Map<String, String> findAndSuggestApiIdsFromUsedServices(@NotNull PsiMethod controllerMethod) {
+        Map<String, String> allFoundApiIds = new HashMap<>();
+        PsiCodeBlock body = controllerMethod.getBody();
         if (body == null) {
-            return result;
+            return allFoundApiIds; // 沒有方法體
         }
 
-        // 查找方法中的所有字段引用表達式
-        Collection<PsiReferenceExpression> fieldRefs = PsiTreeUtil.findChildrenOfType(body, PsiReferenceExpression.class);
+        // 用於記錄已經處理過的 Service 類，避免重複查找
+        Set<PsiClass> processedServiceClasses = new HashSet<>();
 
-        for (PsiReferenceExpression fieldRef : fieldRefs) {
-            PsiElement resolved = fieldRef.resolve();
-            if (resolved instanceof PsiField) {
-                PsiField field = (PsiField) resolved;
-                PsiType fieldType = field.getType();
+        // 遍歷方法體內的元素
+        body.accept(new JavaRecursiveElementWalkingVisitor() {
+            /**
+             * 訪問方法調用表達式，這是 Service 最常見的被使用方式。
+             */
+            @Override
+            public void visitMethodCallExpression(@NotNull PsiMethodCallExpression expression) {
+                super.visitMethodCallExpression(expression); // 繼續遍歷子節點
 
-                if (fieldType instanceof PsiClassType) {
-                    PsiClass fieldClass = ((PsiClassType) fieldType).resolve();
-                    if (fieldClass != null &&
-                            (ApiMsgIdUtil.isServiceInterface(fieldClass) || ApiMsgIdUtil.isServiceImpl(fieldClass))) {
-                        // 獲取完整的類名，以便在註解中標明來源
-                        String qualifiedName = fieldClass.getQualifiedName();
+                // 獲取調用方法的對象 (qualifier)
+                PsiExpression qualifier = expression.getMethodExpression().getQualifierExpression();
+                if (qualifier == null) {
+                    return; // 靜態調用或隱式 this
+                }
 
-                        // 使用通用方法查找電文代號
-                        Map<String, String> serviceApiIds = ApiMsgIdUtil.findApiIdsForServiceClass(fieldClass);
+                // 解析 qualifier 的類型
+                PsiType qualifierType = qualifier.getType();
+                if (qualifierType != null) {
+                    PsiClass qualifierClass = PsiUtil.resolveClassInType(qualifierType);
+                    // 檢查解析出的類型是否是一個 Service 類，並且尚未處理過
+                    if (qualifierClass != null
+                            && ApiMsgIdUtil.isServiceClass(qualifierClass)
+                            && processedServiceClasses.add(qualifierClass)) { // add() 成功表示是第一次遇到
 
-                        // 將結果重新映射，使用完整的類名作為key
-                        for (String key : serviceApiIds.keySet()) {
-                            result.put(key, serviceApiIds.get(key));
-                        }
+                        // 為這個找到的 Service 類查找關聯的電文代號
+                        Map<String, String> apiIds = ApiMsgIdUtil.findApiIdsForServiceClass(qualifierClass);
+                        // 將找到的結果合併到總結果中
+                        allFoundApiIds.putAll(apiIds);
+                    }
+                } else if (qualifier instanceof PsiReferenceExpression) {
+                    // getType() 為 null 時的後備檢查 (較少見)
+                    PsiElement resolved = ((PsiReferenceExpression) qualifier).resolve();
+                    if (resolved instanceof PsiVariable) {
+                        PsiType variableType = ((PsiVariable) resolved).getType();
+                        PsiClass variableClass = PsiUtil.resolveClassInType(variableType);
+                        if (variableClass != null
+                                && ApiMsgIdUtil.isServiceClass(variableClass)
+                                && processedServiceClasses.add(variableClass)) {
 
-                        if (!result.isEmpty()) {
-                            break;  // 找到一個電文代號就可以了
+                            Map<String, String> apiIds = ApiMsgIdUtil.findApiIdsForServiceClass(variableClass);
+                            allFoundApiIds.putAll(apiIds);
                         }
                     }
                 }
             }
-        }
+        });
 
-        return result;
+        return allFoundApiIds;
     }
 }

@@ -5,7 +5,7 @@
 *.ipr
 out/
 .vscode/
-.IntelliJPlatform/
+.intellijPlatform/
 
 # Gradle
 .gradle/
