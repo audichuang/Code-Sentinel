@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.cathaybk"
-version = "1.1.0"
+version = "1.2.0"
 
 repositories {
     mavenCentral()
@@ -110,6 +110,7 @@ intellijPlatform {
         
         changeNotes.set("""
             <ul>
+                <li>1.2.0: 增加對25.1版本的支持，新增bean加入註解功能</li>
                 <li>1.1.0: 優化效能，修正已知問題，改善使用者體驗</li>
                 <li>1.0.0: 初始版本，提供API註解檢查和Service關聯功能</li>
             </ul>
