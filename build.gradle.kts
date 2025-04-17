@@ -9,7 +9,9 @@ version = "1.1.0"
 
 repositories {
     mavenCentral()
-    intellijPlatform.defaultRepositories()
+    intellijPlatform {
+        defaultRepositories()
+    }
 }
 
 // 強制使用特定版本的依賴項，解決衝突
@@ -37,7 +39,7 @@ dependencies {
     
     // 指定 IntelliJ Platform 依賴
     intellijPlatform {
-        local("/Applications/IntelliJ IDEA.app")
+        create("IC", "2024.3")
         bundledPlugin("com.intellij.java")
     }
 }
@@ -100,10 +102,10 @@ intellijPlatform {
             - 自動關聯Controller的API方法與對應的Service實現
             - 提供程式碼規範檢查並顯示警告
         """)
-        
+
         ideaVersion {
             sinceBuild.set("231")
-            untilBuild.set("243.*")
+            untilBuild.set("251.*")
         }
         
         changeNotes.set("""

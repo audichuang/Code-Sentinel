@@ -9,21 +9,37 @@
     - 檢查Controller層API方法是否添加了msgID註解
     - 自動關聯Controller的API方法與對應的Service實現
     - 提供程式碼規範檢查並顯示警告
+    - (新增) 檢查注入的欄位是否缺少Javadoc註解並提供快速修復
     ]]></description>
 
-    <idea-version since-build="231" until-build="243.*"/>
+    <!-- 更新 until-build 到一個較新的版本或保持通用，例如 251.* 表示直到 2025.1.x -->
+    <idea-version since-build="231" until-build="251.*"/>
 
+    <!-- 依賴關係 -->
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.java</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <!-- 添加自定義檢查器 -->
-        <localInspection language="JAVA" 
-                         displayName="API MsgID檢查" 
-                         groupName="CathayBk規範檢查" 
-                         enabledByDefault="true" 
+        <!-- 1. 原有的 API MsgID 檢查器 -->
+        <localInspection language="JAVA"
+                         displayName="API MsgID檢查"
+                         groupName="CathayBk規範檢查"
+                         enabledByDefault="true"
                          level="WARNING"
                          shortName="ApiMsgIdInspection"
                          implementationClass="com.cathaybk.codingassistant.inspection.ApiMsgIdInspection"/>
+
+        <!-- ======================================== -->
+        <!-- 2. 新增的 注入欄位 Javadoc 檢查器        -->
+        <!--    (所有註解都已移到標籤外部)          -->
+        <!-- ======================================== -->
+        <localInspection language="JAVA"
+                         displayName="注入的欄位缺少 Javadoc"
+                         groupName="CathayBk規範檢查"
+                         enabledByDefault="true"
+                         level="WARNING"
+                         shortName="InjectedFieldJavadocInspection"
+                         implementationClass="com.cathaybk.codingassistant.inspection.InjectedFieldJavadocInspection"/>
+
     </extensions>
 </idea-plugin>

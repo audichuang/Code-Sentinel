@@ -1,22 +1,16 @@
 package com.cathaybk.codingassistant.inspection;
 
-import com.cathaybk.codingassistant.utils.AddApiIdDocFix;
-import com.cathaybk.codingassistant.utils.AddControllerApiIdFromServiceFix;
-import com.cathaybk.codingassistant.utils.AddServiceApiIdQuickFix;
+import com.cathaybk.codingassistant.fix.AddApiIdDocFix;
+import com.cathaybk.codingassistant.fix.AddControllerApiIdFromServiceFix;
+import com.cathaybk.codingassistant.fix.AddServiceApiIdQuickFix;
 import com.cathaybk.codingassistant.utils.ApiMsgIdUtil;
 import com.intellij.codeInspection.*;
-import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
-import com.intellij.psi.javadoc.PsiDocComment;
-import com.intellij.psi.util.InheritanceUtil;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.PsiUtil;
-import com.intellij.util.IncorrectOperationException; // 保留，因為 AddApiIdDocFix 可能拋出
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * API 電文代號檢查器。

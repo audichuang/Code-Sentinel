@@ -1,5 +1,7 @@
-package com.cathaybk.codingassistant.utils;
+package com.cathaybk.codingassistant.fix;
 
+import com.cathaybk.codingassistant.utils.ApiMsgIdUtil;
+import com.cathaybk.codingassistant.utils.JavadocUtil;
 import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.openapi.project.Project;
