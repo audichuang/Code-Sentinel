@@ -42,6 +42,10 @@ dependencies {
         create("IC", "2024.3")
         bundledPlugin("com.intellij.java")
     }
+//    intellijPlatform {
+//        local("/Applications/IntelliJ IDEA.app")
+//        bundledPlugin("com.intellij.java")
+//    }
 }
 
 tasks {

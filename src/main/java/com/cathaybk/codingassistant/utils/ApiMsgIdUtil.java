@@ -3,8 +3,7 @@ package com.cathaybk.codingassistant.utils;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
 import com.intellij.psi.javadoc.PsiDocComment;
-// import com.intellij.psi.search.GlobalSearchScope; // 保留，但未使用
-import com.intellij.psi.search.SearchScope; // 引入 SearchScope
+import com.intellij.psi.search.SearchScope;
 import com.intellij.psi.search.searches.ClassInheritorsSearch;
 import com.intellij.psi.search.searches.ReferencesSearch;
 import com.intellij.psi.util.InheritanceUtil;
@@ -369,9 +368,9 @@ public class ApiMsgIdUtil {
      * 輔助方法：檢查給定的方法是否滿足 Controller API 方法的條件、是否實際使用了目標 Service 類型，
      * 並提取其電文代號。
      *
-     * @param method                    要檢查的 {@link PsiMethod}。
-     * @param serviceOrInterfaceClass   目標 Service 類型 (接口或實現類)，用於 {@link #checkMethodBodyForServiceUsage}。
-     * @param result                    用於存放結果的 Map (方法名 -> 電文代號)。
+     * @param method                  要檢查的 {@link PsiMethod}。
+     * @param serviceOrInterfaceClass 目標 Service 類型 (接口或實現類)，用於 {@link #checkMethodBodyForServiceUsage}。
+     * @param result                  用於存放結果的 Map (方法名 -> 電文代號)。
      */
     private static void checkControllerMethod(@NotNull PsiMethod method, @NotNull PsiClass serviceOrInterfaceClass,
                                               @NotNull Map<String, String> result) {
@@ -397,8 +396,8 @@ public class ApiMsgIdUtil {
      * 核心檢查邏輯：使用 PSI Visitor 遍歷方法體，判斷是否實際使用了指定 {@code targetClass} 兼容類型的實例。
      * <p>主要檢查方法體內是否存在對 {@code targetClass} 或其子類/實現類實例的方法調用。</p>
      *
-     * @param method       要檢查的 {@link PsiMethod}。
-     * @param targetClass  要檢查是否被使用的目標類 (接口或實現類) {@link PsiClass}。
+     * @param method      要檢查的 {@link PsiMethod}。
+     * @param targetClass 要檢查是否被使用的目標類 (接口或實現類) {@link PsiClass}。
      * @return 如果方法體內找到對 {@code targetClass} 兼容類型實例的有效使用（通常是方法調用），則返回 {@code true}；否則返回 {@code false}。
      */
     private static boolean checkMethodBodyForServiceUsage(@NotNull PsiMethod method, @NotNull PsiClass targetClass) {
@@ -411,7 +410,10 @@ public class ApiMsgIdUtil {
         body.accept(new JavaRecursiveElementWalkingVisitor() {
             @Override
             public void visitMethodCallExpression(@NotNull PsiMethodCallExpression expression) {
-                if (usageFound.get()) { stopWalking(); return; }
+                if (usageFound.get()) {
+                    stopWalking();
+                    return;
+                }
                 super.visitMethodCallExpression(expression);
                 PsiExpression qualifier = expression.getMethodExpression().getQualifierExpression();
                 checkQualifier(qualifier);
@@ -531,5 +533,117 @@ public class ApiMsgIdUtil {
         }
 
         return result; // 可能返回空 Map
+    }
+
+    /**
+     * 查找給定 Controller 方法內部實際使用的 Service 類別，並獲取這些 Service 關聯的電文代號。
+     * <p>
+     * 此方法通過 PSI 分析方法體，識別出對 Service 類別實例的方法調用，
+     * 然後為每個識別出的 Service 類別調用 {@link ApiMsgIdUtil#findApiIdsForServiceClass}
+     * 來查找其最相關的電文代號。
+     * </p>
+     *
+     * @param controllerMethod 要分析的 Controller {@link PsiMethod}。
+     * @return 一個 Map，Key 是找到的電文代號的來源名稱 (例如，"UserServiceImpl" 或 "anotherControllerMethod")，
+     * Value 是對應的電文代號字串。如果方法體內沒有使用 Service，或者使用的 Service 沒有關聯的電文代號，則返回空 Map。
+     */
+    @NotNull
+    public static Map<String, String> findAndSuggestApiIdsFromUsedServices(@NotNull PsiMethod controllerMethod) {
+        Map<String, String> allFoundApiIds = new HashMap<>();
+        PsiCodeBlock body = controllerMethod.getBody();
+        if (body == null) {
+            return allFoundApiIds; // 沒有方法體
+        }
+
+        // 用於記錄已經處理過的 Service 類，避免重複查找
+        Set<PsiClass> processedServiceClasses = new HashSet<>();
+
+        // 遍歷方法體內的元素
+        body.accept(new JavaRecursiveElementWalkingVisitor() {
+            /**
+             * 訪問方法調用表達式，這是 Service 最常見的被使用方式。
+             */
+            @Override
+            public void visitMethodCallExpression(@NotNull PsiMethodCallExpression expression) {
+                super.visitMethodCallExpression(expression); // 繼續遍歷子節點
+
+                // 獲取調用方法的對象 (qualifier)
+                PsiExpression qualifier = expression.getMethodExpression().getQualifierExpression();
+                if (qualifier == null) {
+                    // 可能是 this.method() 或 靜態方法調用，或者方法在同一個類中
+                    // 如果需要處理 this.service.method() 的情況，需要進一步分析 qualifier
+                    // 如果是 this 調用，嘗試獲取 containing class
+                    if (expression.getMethodExpression().getQualifier() == null || expression.getMethodExpression().getQualifier() instanceof PsiThisExpression) {
+                        PsiMethod resolvedMethod = expression.resolveMethod();
+                        if (resolvedMethod != null) {
+                            PsiClass containingClass = resolvedMethod.getContainingClass();
+                            // 我們關心的是調用 Service 的方法，不是調用 Controller 內部其他方法
+                            // 所以這裡的邏輯可能需要調整，看是否要處理 this 調用
+                        }
+                    }
+                    return;
+                }
+
+                // 解析 qualifier 的類型
+                PsiType qualifierType = qualifier.getType();
+                if (qualifierType != null) {
+                    PsiClass qualifierClass = PsiUtil.resolveClassInType(qualifierType);
+                    // 檢查解析出的類型是否是一個 Service 類，並且尚未處理過
+                    if (qualifierClass != null
+                            && ApiMsgIdUtil.isServiceClass(qualifierClass) // 使用 ApiMsgIdUtil 的方法
+                            && processedServiceClasses.add(qualifierClass)) { // add() 成功表示是第一次遇到
+
+                        // 為這個找到的 Service 類查找關聯的電文代號
+                        Map<String, String> apiIds = ApiMsgIdUtil.findApiIdsForServiceClass(qualifierClass); // 使用 ApiMsgIdUtil 的方法
+                        // 將找到的結果合併到總結果中
+                        allFoundApiIds.putAll(apiIds);
+                    }
+                } else if (qualifier instanceof PsiReferenceExpression) {
+                    // getType() 為 null 時的後備檢查 (例如，對字段的引用)
+                    PsiElement resolved = ((PsiReferenceExpression) qualifier).resolve();
+                    if (resolved instanceof PsiVariable) { // 檢查是否解析為一個變數 (字段、局部變數等)
+                        PsiType variableType = ((PsiVariable) resolved).getType();
+                        PsiClass variableClass = PsiUtil.resolveClassInType(variableType);
+                        if (variableClass != null
+                                && ApiMsgIdUtil.isServiceClass(variableClass) // 使用 ApiMsgIdUtil 的方法
+                                && processedServiceClasses.add(variableClass)) {
+
+                            Map<String, String> apiIds = ApiMsgIdUtil.findApiIdsForServiceClass(variableClass); // 使用 ApiMsgIdUtil 的方法
+                            allFoundApiIds.putAll(apiIds);
+                        }
+                    }
+                    // 這裡可以添加對解析為 PsiMethod 等其他情況的處理 (如果需要)
+                }
+            }
+
+            // 可以考慮也訪問字段引用、變數聲明等，以處理更複雜的 Service 使用方式
+            // 例如： private final UserService userService; (注入的字段)
+            //        ...
+            //        userService.doSomething();
+            // 或者： UserService localService = getService(); (方法返回 Service)
+            //        localService.doAnother();
+
+            // 訪問變數聲明，檢查類型是否為 Service
+            @Override
+            public void visitDeclarationStatement(@NotNull PsiDeclarationStatement statement) {
+                super.visitDeclarationStatement(statement);
+                for (PsiElement declaredElement : statement.getDeclaredElements()) {
+                    if (declaredElement instanceof PsiLocalVariable) {
+                        PsiLocalVariable localVar = (PsiLocalVariable) declaredElement;
+                        PsiType varType = localVar.getType();
+                        PsiClass varClass = PsiUtil.resolveClassInType(varType);
+                        if (varClass != null && ApiMsgIdUtil.isServiceClass(varClass) && processedServiceClasses.add(varClass)) {
+                            // 這個 Service 類被聲明了，我們也查找它的 ID
+                            // 這可能有點過度查找，因為聲明不代表一定被使用
+                            // 但如果 Controller 方法很複雜，這可能是一種補充
+                            // Map<String, String> apiIds = ApiMsgIdUtil.findApiIdsForServiceClass(varClass);
+                            // allFoundApiIds.putAll(apiIds);
+                        }
+                    }
+                }
+            }
+        });
+
+        return allFoundApiIds;
     }
 }

@@ -2,9 +2,8 @@ package com.cathaybk.codingassistant.utils;
 
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
-import com.intellij.psi.codeStyle.CodeStyleManager; // 重新引入
+import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.psi.javadoc.PsiDocComment;
-// JavadocUtil 內部不再需要 PsiDocTag, PsiDocToken, JavaDocTokenType
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
 import org.jetbrains.annotations.NotNull;
@@ -112,7 +111,7 @@ public class JavadocUtil {
                     }
 
                     if (descriptionSkipped) {
-                        if (!trimmedLine.isEmpty() && !trimmedLine.equals("*") ) {
+                        if (!trimmedLine.isEmpty() && !trimmedLine.equals("*")) {
                             builder.append(" *");
                             if (!content.isEmpty()) {
                                 builder.append(" ");

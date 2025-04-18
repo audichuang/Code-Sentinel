@@ -41,5 +41,10 @@
                          shortName="InjectedFieldJavadocInspection"
                          implementationClass="com.cathaybk.codingassistant.inspection.InjectedFieldJavadocInspection"/>
 
+        <!-- ======================================== -->
+        <!-- 3. 新增 Commit 前檢查處理器           -->
+        <!-- ======================================== -->
+        <checkinHandlerFactory implementation="com.cathaybk.codingassistant.vcs.CathayBkCheckinHandlerFactory"/>
+
     </extensions>
 </idea-plugin>
