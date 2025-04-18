@@ -63,7 +63,6 @@ public class CathayBkCheckinHandler extends CheckinHandler {
         this.project = panel.getProject();
     }
 
-    // ... (beforeCheckin, showProblemsInToolWindow, createProblemsPanel, createProblemTree, updateDetailsPane, navigateToProblem, ProblemInfoNode, getLineNumber 保持不變)
 
 
     @Override
@@ -84,9 +83,8 @@ public class CathayBkCheckinHandler extends CheckinHandler {
             }
         });
 
-        // 改用 ProblemInfo 存儲結果
         List<ProblemInfo> allProblems = new ArrayList<>();
-        AtomicReference<ReturnResult> result = new AtomicReference<>(ReturnResult.COMMIT); // 預設為 COMMIT
+        AtomicReference<ReturnResult> result = new AtomicReference<>(ReturnResult.COMMIT);
 
         LOG.info("開始執行進度檢查...");
 
@@ -95,19 +93,17 @@ public class CathayBkCheckinHandler extends CheckinHandler {
             ProgressIndicator indicator = ProgressManager.getInstance().getProgressIndicator();
             if (indicator == null) {
                 LOG.warn("Progress Indicator 為 null，退出檢查");
-                return; // 可能需要設置 result 為 CANCEL 或其他？但這裡直接返回似乎也可
+                return;
             }
             indicator.setIndeterminate(false);
             indicator.setText("執行國泰規範檢查...");
 
             PsiManager psiManager = PsiManager.getInstance(project);
-
             int processedCount = 0;
             int totalChanges = changes.size();
-
             List<PsiJavaFile> relevantJavaFiles = new ArrayList<>();
 
-            // 1. 收集所有需要檢查的 Java 文件
+            // 1. 收集 Java 文件 (省略重複程式碼)
             for (Change change : changes) {
                 if (indicator.isCanceled()) {
                     LOG.info("使用者取消了收集文件階段");
@@ -115,41 +111,34 @@ public class CathayBkCheckinHandler extends CheckinHandler {
                     return;
                 }
                 processedCount++;
-                indicator.setFraction((double) processedCount / (totalChanges * 2)); // 分階段顯示進度
+                // 避免 totalChanges 為 0
+                if (totalChanges > 0) {
+                    indicator.setFraction((double) processedCount / (totalChanges * 2));
+                } else {
+                    indicator.setFraction(0.5); // 如果沒變更，直接到一半
+                }
 
                 ContentRevision afterRevision = change.getAfterRevision();
                 if (afterRevision == null) continue;
 
                 VirtualFile vf = ReadAction.compute(() -> {
-                    try {
-                        return afterRevision.getFile() != null ? afterRevision.getFile().getVirtualFile() : null;
-                    } catch (Exception e) {
-                        LOG.error("獲取 VirtualFile 時發生錯誤", e);
-                        return null;
-                    }
+                    try { return afterRevision.getFile() != null ? afterRevision.getFile().getVirtualFile() : null; }
+                    catch (Exception e) { LOG.error("獲取 VirtualFile 時發生錯誤", e); return null; }
                 });
 
-                if (vf == null || !vf.isValid() || vf.getFileType().isBinary() || !vf.getName().endsWith(".java")) {
-                    LOG.debug("跳過非 Java 或無效文件：" + (vf != null ? vf.getPath() : "未知"));
-                    continue;
-                }
+                if (vf == null || !vf.isValid() || vf.getFileType().isBinary() || !vf.getName().endsWith(".java")) continue;
 
                 ReadAction.run(() -> {
                     PsiFile psiFile = psiManager.findFile(vf);
-                    if (psiFile instanceof PsiJavaFile) {
-                        relevantJavaFiles.add((PsiJavaFile) psiFile);
-                        LOG.debug("添加待檢查 Java 文件：" + vf.getPath());
-                    } else {
-                        LOG.debug("文件不是 PsiJavaFile：" + vf.getPath());
-                    }
+                    if (psiFile instanceof PsiJavaFile) relevantJavaFiles.add((PsiJavaFile) psiFile);
                 });
             }
 
-            // 2. 遍歷 Java 文件並執行檢查
+
+            // 2. 執行檢查 (省略重複程式碼)
             LOG.info("找到 " + relevantJavaFiles.size() + " 個 Java 文件需要檢查");
             int filesChecked = 0;
             int totalFiles = relevantJavaFiles.size();
-
             for (PsiJavaFile javaFile : relevantJavaFiles) {
                 if (indicator.isCanceled()) {
                     LOG.info("使用者取消了檢查階段");
@@ -157,73 +146,94 @@ public class CathayBkCheckinHandler extends CheckinHandler {
                     return;
                 }
                 filesChecked++;
-                // 檢查是否為 0，避免除以零錯誤
                 if (totalFiles > 0) {
-                    indicator.setFraction(0.5 + (double) filesChecked / (totalFiles * 2)); // 第二階段進度
+                    indicator.setFraction(0.5 + (double) filesChecked / (totalFiles * 2));
                 } else {
-                    indicator.setFraction(1.0); // 如果沒有 Java 文件，直接完成
+                    indicator.setFraction(1.0);
                 }
                 indicator.setText2("檢查 " + javaFile.getName());
-                LOG.info("開始檢查 Java 文件：" + javaFile.getName());
 
                 ReadAction.run(() -> {
-                    // 遍歷文件中的所有元素並應用檢查
                     javaFile.accept(new JavaRecursiveElementWalkingVisitor() {
                         @Override
                         public void visitClass(@NotNull PsiClass aClass) {
                             super.visitClass(aClass);
                             if (indicator.isCanceled()) return;
-                            // 檢查 Service Class Javadoc
                             allProblems.addAll(CathayBkInspectionUtil.checkServiceClassDoc(aClass));
                         }
-
                         @Override
                         public void visitMethod(@NotNull PsiMethod method) {
                             super.visitMethod(method);
                             if (indicator.isCanceled()) return;
-                            // 檢查 API Method Javadoc
                             allProblems.addAll(CathayBkInspectionUtil.checkApiMethodDoc(method));
-                            // 檢查方法命名 (僅駝峰)
                             allProblems.addAll(CathayBkInspectionUtil.checkMethodNaming(method));
                         }
-
                         @Override
                         public void visitField(@NotNull PsiField field) {
                             super.visitField(field);
                             if (indicator.isCanceled()) return;
-                            // 檢查注入欄位 Javadoc
                             allProblems.addAll(CathayBkInspectionUtil.checkInjectedFieldDoc(field));
                         }
                     });
                 });
             }
 
+
             LOG.info("總共發現問題數量：" + allProblems.size());
 
             // 顯示問題並詢問是否繼續提交
             if (!allProblems.isEmpty()) {
-                LOG.info("發現問題，將在工具窗口顯示問題清單");
+                LOG.info("發現問題，顯示自訂對話框");
                 // 需要在 EDT 中顯示 UI
                 ApplicationManager.getApplication().invokeAndWait(() -> {
-                    showProblemsInToolWindow(project, allProblems); // 傳遞 ProblemInfo 列表
+                    // 先確保工具窗口顯示內容
+                    showProblemsInToolWindow(project, allProblems);
 
-                    int dialogResult = Messages.showOkCancelDialog(
-                            project,
-                            "在提交的文件中發現 " + allProblems.size() + " 個國泰規範問題。\n" +
-                                    "問題清單已在「國泰規範檢查」側邊欄顯示。\n\n" +
-                                    "是否仍要繼續提交？",
-                            "國泰規範檢查",
-                            "繼續提交",
-                            "取消提交",
-                            Messages.getWarningIcon());
-                    // 根據對話框結果設置最終結果
-                    result.set(dialogResult == Messages.OK ? ReturnResult.COMMIT : ReturnResult.CANCEL);
+                    // --- 修改點：使用 Messages.showDialog ---
+                    String title = "國泰規範檢查結果";
+                    String message = "發現 " + allProblems.size() + " 個國泰規範問題。\n請查看「國泰規範檢查」工具窗口中的詳細信息。";
+                    // 定義按鈕文字
+                    String[] buttons = {"繼續提交 (Continue)", "取消提交 (Cancel)", "查看問題 (Review Issues)"};
+                    // 顯示對話框
+                    // 第三個參數是默認按鈕的索引 (0: 繼續, 1: 取消, 2: 查看)
+                    // 第四個參數是焦點按鈕的索引
+                    // 我們可以讓 "取消提交" 作為默認焦點
+                    int choice = Messages.showDialog(
+                            project, // 父組件
+                            message, // 顯示訊息
+                            title,   // 標題
+                            buttons, // 按鈕文字陣列
+                            1,       // 默認選中的按鈕索引 (取消提交)
+                            AllIcons.General.Warning // 圖標
+                    );
+
+                    // 根據使用者的選擇設置結果
+                    switch (choice) {
+                        case 0: // 繼續提交 (Continue)
+                            LOG.info("使用者選擇繼續提交");
+                            result.set(ReturnResult.COMMIT);
+                            break;
+                        case 2: // 查看問題 (Review Issues)
+                            LOG.info("使用者選擇查看問題，取消本次提交");
+                            // 再次確保工具窗口可見並激活 (showProblemsInToolWindow 應該已處理)
+                            ToolWindow toolWindow = ToolWindowManager.getInstance(project).getToolWindow(TOOL_WINDOW_ID);
+                            if (toolWindow != null) {
+                                toolWindow.activate(null, true); // 強制激活
+                            }
+                            // 取消提交，讓使用者查看後決定
+                            result.set(ReturnResult.CANCEL);
+                            break;
+                        case 1: // 取消提交 (Cancel)
+                        default: // 包括關閉對話框 (choice == -1)
+                            LOG.info("使用者選擇取消提交或關閉了對話框");
+                            result.set(ReturnResult.CANCEL);
+                            break;
+                    }
+                    // --- 修改結束 ---
                 });
             } else {
-                // === 修改點：如果沒有問題，直接設置結果為 COMMIT，不顯示對話框 ===
                 LOG.info("未發現問題，自動繼續提交");
                 result.set(ReturnResult.COMMIT);
-                // === 不再需要 invokeAndWait 和 Messages.showOkCancelDialog ===
             }
             LOG.info("檢查完成，處理結果：" + result.get());
 
@@ -387,10 +397,10 @@ public class CathayBkCheckinHandler extends CheckinHandler {
 
     /**
      * 更新詳細信息面板 (使用 ProblemInfo)
+     * (簡化 CSS 樣式以避免渲染錯誤)
      */
     private void updateDetailsPane(Project project, JEditorPane detailsPane, ProblemInfo problem) {
         PsiElement element = problem.getElement();
-        // 再次檢查有效性
         PsiFile file = (element != null && element.isValid()) ? element.getContainingFile() : null;
 
         StringBuilder html = new StringBuilder();
@@ -398,7 +408,7 @@ public class CathayBkCheckinHandler extends CheckinHandler {
         html.append("<h2 style='color: #2c3e50;'>問題詳情</h2>");
         html.append("<p><b>描述：</b> ").append(escapeHtml(problem.getDescription())).append("</p>");
 
-        if (file != null) { // 確保文件有效
+        if (file != null) {
             html.append("<p><b>文件：</b> ").append(escapeHtml(file.getName())).append("</p>");
             int lineNumber = getLineNumber(project, element);
             if (lineNumber > 0) {
@@ -408,13 +418,13 @@ public class CathayBkCheckinHandler extends CheckinHandler {
             html.append("<p><b>文件：</b> 無法確定 (元素可能已失效)</p>");
         }
 
-        if (element != null && element.isValid()) { // 顯示代碼片段前再次檢查
+        if (element != null && element.isValid()) {
             html.append("<p><b>代碼片段：</b></p>");
             try {
-                // 嘗試獲取更上下文的代碼？也許只獲取元素文本就夠了
                 String elementText = ReadAction.compute(() -> element.getText());
-                html.append("<pre style='background-color:#f0f0f0; padding:8px; border:1px solid #ccc; border-radius: 4px; overflow: auto; white-space: pre-wrap; word-wrap: break-word;'>")
-                        .append(escapeHtml(elementText)) // 使用修正後的轉義
+                // --- 修改點：簡化 <pre> 的 style ---
+                html.append("<pre style='background-color:#f0f0f0; padding:8px; border:1px solid #ccc; white-space: pre-wrap;'>") // 移除了 border-radius, overflow, word-wrap
+                        .append(escapeHtml(elementText))
                         .append("</pre>");
             } catch (Exception e) {
                 html.append("<pre style='color:red;'>無法顯示代碼片段</pre>");
@@ -426,6 +436,7 @@ public class CathayBkCheckinHandler extends CheckinHandler {
 
         html.append("<p><b>嚴重程度：</b> ");
         ProblemHighlightType highlightType = problem.getHighlightType();
+        // (嚴重程度部分的 HTML 保持不變)
         if (highlightType == ProblemHighlightType.ERROR) {
             html.append("<span style='color:red; font-weight: bold;'>錯誤</span>");
         } else if (highlightType == ProblemHighlightType.WARNING || highlightType == ProblemHighlightType.WEAK_WARNING) {
@@ -442,8 +453,9 @@ public class CathayBkCheckinHandler extends CheckinHandler {
                 html.append("<p><b>來源：</b> ").append(escapeHtml(problem.getSuggestionSource())).append("</p>");
             }
             if (problem.getSuggestedValue() != null) {
-                html.append("<p><b>建議值：</b><br><code style='background-color:#e0e0e0; padding: 2px 5px; border-radius: 3px;'>")
-                        .append(escapeHtml(problem.getSuggestedValue())) // 建議值也轉義
+                // --- 修改點：簡化 <code> 的 style ---
+                html.append("<p><b>建議值：</b><br><code style='background-color:#e0e0e0; padding: 2px 5px;'>") // 移除了 border-radius
+                        .append(escapeHtml(problem.getSuggestedValue()))
                         .append("</code></p>");
             }
         } else {
@@ -454,8 +466,20 @@ public class CathayBkCheckinHandler extends CheckinHandler {
         html.append("<p style='margin-top: 15px; font-style: italic;'>提示：雙擊問題可直接跳轉到對應代碼位置</p>");
         html.append("</body></html>");
 
-        detailsPane.setText(html.toString());
-        detailsPane.setCaretPosition(0); // 確保滾動到頂部
+        try {
+            // 在設置文本之前，確保 detailsPane 仍然可用
+            if (detailsPane.isDisplayable()) {
+                detailsPane.setText(html.toString());
+                detailsPane.setCaretPosition(0); // 確保滾動到頂部
+            } else {
+                LOG.warn("Details pane is not displayable when trying to set text.");
+            }
+        } catch (Exception e) {
+            // 捕獲 setText 可能拋出的其他異常
+            LOG.error("Error setting text in JEditorPane: " + e.getMessage(), e);
+            // 可以嘗試設置一個簡單的錯誤訊息
+            detailsPane.setText("<html><body><p style='color:red'>顯示問題詳情時發生錯誤。</p></body></html>");
+        }
     }
 
     /**
