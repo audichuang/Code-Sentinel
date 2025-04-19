@@ -5,11 +5,19 @@
 
     <description><![CDATA[
     國泰銀行程式碼助手，用於協助開發人員遵循公司的編碼標準和規範。
+    
     主要功能：
     - 檢查Controller層API方法是否添加了msgID註解
     - 自動關聯Controller的API方法與對應的Service實現
     - 提供程式碼規範檢查並顯示警告
-    - (新增) 檢查注入的欄位是否缺少Javadoc註解並提供快速修復
+    - 檢查注入的欄位是否缺少Javadoc註解並提供快速修復
+    
+    v1.3.0 更新內容：
+    - 提交前檢查流程優化，提高執行效率
+    - 問題面板（Problems Panel）界面優化，移除搜尋框，改善使用體驗
+    - UI 元素顯示調整，適配最新版 IntelliJ IDEA
+    - 修復 HTML 顯示相關的多處錯誤
+    - 修復在 IntelliJ IDEA 2024.3 中無法正常運行的問題
     ]]></description>
 
     <!-- 更新 until-build 到一個較新的版本或保持通用，例如 251.* 表示直到 2025.1.x -->

@@ -24,8 +24,6 @@ import com.intellij.util.ui.tree.TreeUtil;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
@@ -205,40 +203,7 @@ public class CathayBkProblemsPanel extends JPanel {
         treeTitle.setBorder(JBUI.Borders.empty(5, 8));
         treeTitle.setFont(treeTitle.getFont().deriveFont(Font.BOLD));
 
-        this.searchField = new SearchTextField();
-        JTextField textEditor = this.searchField.getTextEditor();
-        textEditor.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                filter();
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                filter();
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                filter();
-            }
-
-            private void filter() {
-                SwingUtilities.invokeLater(() -> {
-                    if (problemTree != null && searchField != null) {
-                        filterTree(problemTree, searchField.getText());
-                    }
-                });
-            }
-        });
-
-        JPanel searchPanel = new JPanel(new BorderLayout());
-        searchPanel.add(new JLabel("搜尋: "), BorderLayout.WEST);
-        searchPanel.add(this.searchField, BorderLayout.CENTER);
-        searchPanel.setBorder(JBUI.Borders.empty(5, 8, 10, 8));
-
         leftPanel.add(treeTitle, BorderLayout.NORTH);
-        leftPanel.add(searchPanel, BorderLayout.SOUTH);
         leftPanel.add(treeScrollPane, BorderLayout.CENTER);
 
         // --- Right Panel (Details) ---
@@ -323,9 +288,7 @@ public class CathayBkProblemsPanel extends JPanel {
 
         // --- Initial Focus ---
         ApplicationManager.getApplication().invokeLater(() -> {
-            if (this.searchField != null)
-                this.searchField.requestFocusInWindow();
-            else if (this.problemTree != null)
+            if (this.problemTree != null) // 如果沒有搜尋框，則聚焦問題樹
                 this.problemTree.requestFocusInWindow();
         });
     }
@@ -375,6 +338,8 @@ public class CathayBkProblemsPanel extends JPanel {
         if (searchText.isEmpty()) {
             currentProblems = new ArrayList<>(originalProblems);
         } else {
+            // 移除過濾邏輯中對 searchField 的依賴性，但保留過濾本身
+            // （如果希望完全移除過濾功能，需要進一步修改）
             currentProblems = originalProblems.stream()
                     .filter(p -> {
                         if (p == null)
@@ -466,18 +431,27 @@ public class CathayBkProblemsPanel extends JPanel {
             @Override
             public Component getTreeCellRendererComponent(JTree tree, Object value, boolean sel, boolean expanded,
                                                           boolean leaf, int row, boolean hasFocus) {
-                super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
-                setForeground(UIManager.getColor("Tree.foreground")); // 適應主題顏色
-                setBackgroundNonSelectionColor(UIManager.getColor("Tree.background"));
-                setBackgroundSelectionColor(UIManager.getColor("Tree.selectionBackground"));
-                setTextSelectionColor(UIManager.getColor("Tree.selectionForeground"));
-                setTextNonSelectionColor(UIManager.getColor("Tree.foreground"));
+                // 調用父類實現獲取基礎組件
+                Component c = super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
+
+                // 根據選擇狀態設置正確的前景和背景顏色
+                if (sel) {
+                    // 強制設置選中時的文本顏色和背景色
+                    setForeground(UIManager.getColor("Tree.selectionForeground"));
+                    setBackground(UIManager.getColor("Tree.selectionBackground"));
+                } else {
+                    setForeground(UIManager.getColor("Tree.foreground"));
+                    setBackground(UIManager.getColor("Tree.background"));
+                }
+                // 確保組件是不透明的，背景色才能顯示
+                setOpaque(true);
 
                 Object userObject = ((DefaultMutableTreeNode) value).getUserObject();
                 if (userObject instanceof ProblemInfoNode) {
                     ProblemInfoNode problemNode = (ProblemInfoNode) userObject;
                     setText(problemNode.getShortDescription());
                     ProblemHighlightType highlightType = problemNode.getProblemInfo().getHighlightType();
+                    // 根據問題嚴重性設置圖標
                     if (highlightType == ProblemHighlightType.ERROR)
                         setIcon(AllIcons.General.Error);
                     else if (highlightType == ProblemHighlightType.WARNING
@@ -487,22 +461,24 @@ public class CathayBkProblemsPanel extends JPanel {
                         setIcon(AllIcons.General.Information);
                 } else if (userObject instanceof String) {
                     setText(userObject.toString());
-                    if (row == 0) { // Root node
-                        setIcon(AllIcons.Nodes.ModuleGroup); // 或者其他代表根的圖標
+                    // 根據節點類型（根、文件、文件夾）設置圖標
+                    if (row == 0 && value == tree.getModel().getRoot()) { // 更可靠的根節點判斷
+                        setIcon(AllIcons.Nodes.ModuleGroup);
                     } else if (userObject.toString().endsWith(".java")) {
                         setIcon(AllIcons.FileTypes.Java);
                     } else {
-                        setIcon(AllIcons.Nodes.Folder); // 文件節點
+                        // 假設非 Java 文件是文件夾節點
+                        setIcon(AllIcons.Nodes.Folder);
                     }
                 } else {
-                    // Fallback for unexpected user object types
                     setText("未知節點");
                     setIcon(AllIcons.Actions.Help);
                 }
-                return this;
+                return this; // 返回 this，因為我們修改了 DefaultTreeCellRenderer 自身
             }
         });
-        TreeUtil.expandAll(tree);
+        tree.setBackground(UIManager.getColor("Tree.background")); // 設置樹本身的背景色
+
         return tree;
     }
 
@@ -515,25 +491,12 @@ public class CathayBkProblemsPanel extends JPanel {
             return;
 
         Object userObject = (node != null) ? node.getUserObject() : null;
-        String fontFamily = getDefaultFontFamily();
-
-        Color background = UIManager.getColor("Panel.background");
-        Color foreground = UIManager.getColor("Panel.foreground");
-        boolean isDarkTheme = isDarkTheme(background);
-
-        String bgColorHex = colorToHex(background);
-        String fgColorHex = colorToHex(foreground);
-        String headerColor = isDarkTheme ? "#589df6" : "#4b6eaf"; // Blueish for headers
-        String secondaryTextColor = isDarkTheme ? "#b0b0b0" : "#666666"; // Grayish
 
         StringBuilder summary = new StringBuilder();
-        summary.append("<html><body style='font-family: ").append(fontFamily)
-                .append("; margin: 12px; background-color: ").append(bgColorHex)
-                .append("; color: ").append(fgColorHex).append(";'>");
+        summary.append("<html><body style='margin: 12px;'>");
 
         if (node == null || node.isRoot()) {
-            summary.append("<h2 style='color:").append(headerColor).append(";'>國泰規範檢查結果</h2>");
-            // 顯示原始總問題數和當前視圖問題數
+            summary.append("<h2>國泰規範檢查結果</h2>");
             summary.append("<p>總共發現 <b>").append(originalProblems.size()).append("</b> 個問題");
             if (originalProblems.size() != totalProblemsInCurrentView) {
                 summary.append("（當前視圖顯示 <b>").append(totalProblemsInCurrentView).append("</b> 個）");
@@ -549,22 +512,18 @@ public class CathayBkProblemsPanel extends JPanel {
                         .count();
                 summary.append("<p>分布在 <b>").append(fileCount).append("</b> 個文件中。</p>");
             }
-            summary.append("<p style='margin-top:10px; color:").append(secondaryTextColor)
-                    .append(";'>請選擇左側的文件或問題查看詳細信息。</p>");
+            summary.append("<p>請選擇左側的文件或問題查看詳細信息。</p>");
         } else if (userObject instanceof String) { // File node
             String fileName = (String) userObject;
-            int childCount = node.getChildCount(); // Problems in this file in the current view
-            summary.append("<h2 style='color:").append(headerColor).append(";'>").append(escapeHtml(fileName))
-                    .append("</h2>");
+            int childCount = node.getChildCount();
+            summary.append("<h2>").append(escapeHtml(fileName)).append("</h2>");
             summary.append("<p>此文件中發現 <b>").append(childCount).append("</b> 個問題</p>");
             if (childCount > 0) {
-                summary.append("<p style='margin-top:10px; color:").append(secondaryTextColor)
-                        .append(";'>點擊左側問題查看詳情，或雙擊問題跳轉到代碼。</p>");
+                summary.append("<p>點擊左側問題查看詳情，或雙擊問題跳轉到代碼。</p>");
             }
         } else if (userObject instanceof ProblemInfoNode) {
-            // Should be handled by updateDetailsPane, but as a fallback:
             updateDetailsPane(project, detailsPane, ((ProblemInfoNode) userObject).getProblemInfo());
-            return; // Avoid appending the default message
+            return;
         } else {
             summary.append("<p>請選擇一個問題查看詳細信息。</p>");
         }
@@ -581,40 +540,46 @@ public class CathayBkProblemsPanel extends JPanel {
         if (problem == null || detailsPane == null)
             return;
 
-        // --- Theme Colors ---
-        Color background = UIManager.getColor("Panel.background");
-        Color foreground = UIManager.getColor("Panel.foreground");
-        boolean isDarkTheme = isDarkTheme(background);
-        String bgColorHex = colorToHex(background);
+        // --- 恢復 Theme Colors 計算 ---
+        Color background = UIManager.getColor("EditorPane.background");
+        Color foreground = UIManager.getColor("EditorPane.foreground");
+        boolean isDarkTheme = isDarkTheme(background); // 假設 isDarkTheme 存在
+        String bgColorHex = colorToHex(background); // 假設 colorToHex 存在
         String fgColorHex = colorToHex(foreground);
-        String headerColor = isDarkTheme ? "#e8e8e8" : "#333333";
-        String codeBackground = isDarkTheme ? "#2b2b2b" : "#f5f5f5";
-        String codeBorder = isDarkTheme ? "#555555" : "#dddddd";
-        String boxBackground = isDarkTheme ? "#3c3f41" : "#f9f9f9";
-        String boxBorder = isDarkTheme ? "#555555" : "#cccccc";
-        String codeColor = isDarkTheme ? "#bbbbbb" : "#111111"; // Code snippet text color
+        String headerColor = isDarkTheme ? "#dadada" : "#1a1a1a";
+        String codeBackground = colorToHex(
+                UIManager.getColor(isDarkTheme ? "EditorPane.background" : "TextArea.background"));
+        String codeBorder = colorToHex(UIManager.getColor("Component.borderColor"));
+        String boxBackground = colorToHex(
+                UIManager.getColor(isDarkTheme ? "Panel.background" : "TextField.background"));
+        String boxBorder = colorToHex(UIManager.getColor("Component.borderColor"));
+        String codeColor = fgColorHex;
 
         StringBuilder html = new StringBuilder();
-        html.append("<html><body style='font-family: ").append(getDefaultFontFamily())
-                .append("; margin: 10px; background-color: ").append(bgColorHex)
-                .append("; color: ").append(fgColorHex).append(";'>");
+        // 使用固定的 'sans-serif' 字體，並確保顏色值有效
+        html.append("<html><body style='font-family: sans-serif; margin: 10px; background-color: ")
+                .append(ensureHexPrefix(bgColorHex)).append("; color: ").append(ensureHexPrefix(fgColorHex))
+                .append(";'>"); // 使用 ensureHexPrefix
 
-        html.append("<h2 style='margin-top:0; margin-bottom:10px; color:").append(headerColor).append(";'>問題詳情</h2>");
+        html.append("<h2 style='margin-top:0; margin-bottom:10px; color:").append(ensureHexPrefix(headerColor))
+                .append(";'>問題詳情</h2>"); // 使用 ensureHexPrefix
 
         // --- Severity ---
         ProblemHighlightType highlightType = problem.getHighlightType();
         String severityColor = highlightType == ProblemHighlightType.ERROR ? "#ff5261"
                 : (highlightType == ProblemHighlightType.WARNING || highlightType == ProblemHighlightType.WEAK_WARNING)
                 ? "#eea800"
-                : "#589df6";
+                : "#589df6"; // severityColor 已是 hex
         String severityText = highlightType == ProblemHighlightType.ERROR ? "錯誤"
                 : (highlightType == ProblemHighlightType.WARNING || highlightType == ProblemHighlightType.WEAK_WARNING)
                 ? "警告"
                 : "資訊";
 
-        html.append("<div style='margin-bottom:15px; padding:8px; border:1px solid ").append(boxBorder)
-                .append("; background-color:").append(boxBackground).append(";'>");
-        html.append("<p style='margin:0 0 5px 0;'><b style='color:").append(severityColor).append(";'>")
+        // 再次嘗試移除 border-radius
+        html.append("<div style='margin-bottom:15px; padding:8px; border:1px solid ").append(ensureHexPrefix(boxBorder))
+                .append("; background-color:").append(ensureHexPrefix(boxBackground)).append(";'>"); // 移除 border-radius
+        html.append("<p style='margin:0 0 5px 0;'><b style='color:").append(severityColor).append(";'>") // severityColor
+                // 已是 hex
                 .append(severityText).append(":</b></p>");
         html.append("<p style='margin:0;'>").append(escapeHtml(problem.getDescription())).append("</p>");
         html.append("</div>");
@@ -626,6 +591,7 @@ public class CathayBkProblemsPanel extends JPanel {
             return file != null ? file.getName() : null;
         });
 
+        // 恢復樣式
         if (fileName != null) {
             html.append("<p style='margin:0 0 5px 0;'><b>文件:</b> ").append(escapeHtml(fileName)).append("</p>");
             int lineNumber = getLineNumber(project, element);
@@ -633,11 +599,12 @@ public class CathayBkProblemsPanel extends JPanel {
                 html.append("<p style='margin:0 0 10px 0;'><b>行號:</b> ").append(lineNumber).append("</p>");
             }
         } else {
-            html.append("<p style='margin:0 0 10px 0; color:#888;'><b>文件:</b> 無法確定</p>");
+            html.append("<p style='margin:0 0 10px 0; color:#888;'><b>文件:</b> 無法確定</p>"); // 可以保留這個簡單樣式
         }
 
         // --- Code Snippet ---
         if (element != null && element.isValid()) {
+            // 恢復樣式
             html.append("<p style='margin:10px 0 5px 0;'><b>代碼片段:</b></p>");
             String elementText = ReadAction.compute(() -> {
                 try {
@@ -647,10 +614,11 @@ public class CathayBkProblemsPanel extends JPanel {
                 }
             });
             if (elementText != null) {
-                html.append("<pre style='padding:8px; background-color:").append(codeBackground)
-                        .append("; border:1px solid ").append(codeBorder)
+                // 再次嘗試移除 border-radius
+                html.append("<pre style='padding:8px; background-color:").append(ensureHexPrefix(codeBackground))
+                        .append("; border:1px solid ").append(ensureHexPrefix(codeBorder))
                         .append("; margin:0; white-space: pre-wrap; word-wrap: break-word; color:")
-                        .append(codeColor).append(";'>")
+                        .append(ensureHexPrefix(codeColor)).append(";'>") // 移除 border-radius
                         .append(escapeHtml(elementText))
                         .append("</pre>");
             } else {
@@ -661,28 +629,40 @@ public class CathayBkProblemsPanel extends JPanel {
 
         // --- Suggestion ---
         if (problem.getSuggestionSource() != null || problem.getSuggestedValue() != null) {
+            // 恢復樣式
             html.append("<p style='margin:15px 0 5px 0;'><b>建議:</b></p>");
-            html.append("<div style='padding:8px; background-color:").append(boxBackground)
-                    .append("; border:1px solid ").append(boxBorder).append("; margin:0;'>");
+            // 再次嘗試移除 border-radius
+            html.append("<div style='padding:8px; background-color:").append(ensureHexPrefix(boxBackground))
+                    .append("; border:1px solid ").append(ensureHexPrefix(boxBorder))
+                    .append("; margin:0;'>"); // 移除 border-radius
             if (problem.getSuggestionSource() != null) {
                 html.append("<p style='margin:0 0 5px 0;'>來源: ").append(escapeHtml(problem.getSuggestionSource()))
                         .append("</p>");
             }
             if (problem.getSuggestedValue() != null) {
+                // 再次嘗試移除 border-radius
                 html.append("<p style='margin:0;'>建議值:</p><pre style='padding: 5px; background-color: ")
-                        .append(codeBackground)
+                        .append(ensureHexPrefix(codeBackground))
                         .append("; margin: 5px 0 0 0; white-space: pre-wrap; word-wrap: break-word; color:")
-                        .append(codeColor).append(";'>") // Use code color
+                        .append(ensureHexPrefix(codeColor)).append(";'>") // 移除 border-radius
                         .append(escapeHtml(problem.getSuggestedValue()))
                         .append("</pre>");
             }
             html.append("</div>");
         } else {
+            // 恢復樣式
             html.append("<p style='margin:15px 0 5px 0;'><b>修復建議:</b> 請根據問題描述手動修改代碼。</p>");
         }
 
         html.append("</body></html>");
-        detailsPane.setText(html.toString());
+        // 保留 try-catch
+        try {
+            detailsPane.setText(html.toString());
+        } catch (Exception e) {
+            LOG.error("設置 JEditorPane 文本時出錯. HTML:\n" + html.toString(), e);
+            detailsPane.setText(
+                    "<html><body style='font-family: sans-serif; margin: 10px;'>加載問題詳情時發生內部錯誤，請檢查IDE日誌獲取更多信息。</body></html>");
+        }
         detailsPane.setCaretPosition(0); // Scroll to top
     }
 
@@ -735,15 +715,39 @@ public class CathayBkProblemsPanel extends JPanel {
         return String.format("#%02x%02x%02x", color.getRed(), color.getGreen(), color.getBlue());
     }
 
-    private String getDefaultFontFamily() {
-        Font defaultFont = UIManager.getFont("Label.font");
-        return defaultFont != null ? defaultFont.getFamily() : "sans-serif";
+    // 確保 ensureHexPrefix 方法存在且正確
+    private String ensureHexPrefix(String colorHex) {
+        if (colorHex == null) {
+            LOG.warn("ensureHexPrefix received null color, defaulting to #ffffff");
+            return "#ffffff";
+        }
+        String trimmedHex = colorHex.trim();
+        if (trimmedHex.startsWith("#")) {
+            if (trimmedHex.matches("#[0-9a-fA-F]{6}")) {
+                return trimmedHex;
+            } else {
+                // 移除錯誤插入的程式碼，修正為記錄錯誤並返回預設值
+                LOG.warn("Invalid hex color format (starts with # but invalid): " + trimmedHex
+                        + ", defaulting to #ffffff");
+                return "#ffffff";
+            }
+        } else {
+            // 嘗試添加 '#'，並驗證
+            String prefixedHex = "#" + trimmedHex;
+            if (prefixedHex.matches("#[0-9a-fA-F]{6}")) {
+                return prefixedHex;
+            } else {
+                LOG.warn("Invalid hex color format (after adding # or originally invalid): " + colorHex
+                        + ", defaulting to #ffffff");
+                return "#ffffff";
+            }
+        }
     }
 
     /**
-     * 問題樹節點的包裝類
+     * 問題樹節點的包裝類 - 恢復完整定義
      */
-    private static class ProblemInfoNode {
+    public static class ProblemInfoNode {
         private final ProblemInfo problemInfo;
 
         public ProblemInfoNode(ProblemInfo problemInfo) {
@@ -757,7 +761,8 @@ public class CathayBkProblemsPanel extends JPanel {
         public String getShortDescription() {
             String desc = problemInfo.getDescription();
             String safeDesc = desc != null ? desc : "描述為空";
-            int lineNumber = getLineNumber(
+            // 使用外部類名調用靜態方法
+            int lineNumber = CathayBkProblemsPanel.getLineNumber(
                     problemInfo.getElement() != null ? problemInfo.getElement().getProject() : null,
                     problemInfo.getElement());
             String lineSuffix = (lineNumber > 0) ? " (第 " + lineNumber + " 行)" : "";
