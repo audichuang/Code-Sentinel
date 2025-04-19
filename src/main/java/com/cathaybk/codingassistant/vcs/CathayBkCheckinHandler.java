@@ -8,6 +8,8 @@ import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.editor.Document;
+import com.intellij.openapi.editor.event.DocumentAdapter;
+import com.intellij.openapi.editor.event.DocumentEvent;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.progress.ProgressIndicator;
@@ -23,6 +25,7 @@ import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowAnchor;
 import com.intellij.openapi.wm.ToolWindowManager;
 import com.intellij.psi.*;
+import com.intellij.ui.SearchTextField;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.content.Content;
 import com.intellij.ui.content.ContentFactory;
@@ -36,12 +39,14 @@ import javax.swing.*;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 import java.awt.*;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.util.ArrayList;
-import java.util.Collection;
+import java.util.*;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -62,8 +67,6 @@ public class CathayBkCheckinHandler extends CheckinHandler {
         this.panel = panel;
         this.project = panel.getProject();
     }
-
-
 
     @Override
     public ReturnResult beforeCheckin() {
@@ -119,21 +122,27 @@ public class CathayBkCheckinHandler extends CheckinHandler {
                 }
 
                 ContentRevision afterRevision = change.getAfterRevision();
-                if (afterRevision == null) continue;
+                if (afterRevision == null)
+                    continue;
 
                 VirtualFile vf = ReadAction.compute(() -> {
-                    try { return afterRevision.getFile() != null ? afterRevision.getFile().getVirtualFile() : null; }
-                    catch (Exception e) { LOG.error("獲取 VirtualFile 時發生錯誤", e); return null; }
+                    try {
+                        return afterRevision.getFile() != null ? afterRevision.getFile().getVirtualFile() : null;
+                    } catch (Exception e) {
+                        LOG.error("獲取 VirtualFile 時發生錯誤", e);
+                        return null;
+                    }
                 });
 
-                if (vf == null || !vf.isValid() || vf.getFileType().isBinary() || !vf.getName().endsWith(".java")) continue;
+                if (vf == null || !vf.isValid() || vf.getFileType().isBinary() || !vf.getName().endsWith(".java"))
+                    continue;
 
                 ReadAction.run(() -> {
                     PsiFile psiFile = psiManager.findFile(vf);
-                    if (psiFile instanceof PsiJavaFile) relevantJavaFiles.add((PsiJavaFile) psiFile);
+                    if (psiFile instanceof PsiJavaFile)
+                        relevantJavaFiles.add((PsiJavaFile) psiFile);
                 });
             }
-
 
             // 2. 執行檢查 (省略重複程式碼)
             LOG.info("找到 " + relevantJavaFiles.size() + " 個 Java 文件需要檢查");
@@ -158,26 +167,30 @@ public class CathayBkCheckinHandler extends CheckinHandler {
                         @Override
                         public void visitClass(@NotNull PsiClass aClass) {
                             super.visitClass(aClass);
-                            if (indicator.isCanceled()) return;
+                            if (indicator.isCanceled())
+                                return;
                             allProblems.addAll(CathayBkInspectionUtil.checkServiceClassDoc(aClass));
                         }
+
                         @Override
                         public void visitMethod(@NotNull PsiMethod method) {
                             super.visitMethod(method);
-                            if (indicator.isCanceled()) return;
+                            if (indicator.isCanceled())
+                                return;
                             allProblems.addAll(CathayBkInspectionUtil.checkApiMethodDoc(method));
                             allProblems.addAll(CathayBkInspectionUtil.checkMethodNaming(method));
                         }
+
                         @Override
                         public void visitField(@NotNull PsiField field) {
                             super.visitField(field);
-                            if (indicator.isCanceled()) return;
+                            if (indicator.isCanceled())
+                                return;
                             allProblems.addAll(CathayBkInspectionUtil.checkInjectedFieldDoc(field));
                         }
                     });
                 });
             }
-
 
             LOG.info("總共發現問題數量：" + allProblems.size());
 
@@ -186,14 +199,14 @@ public class CathayBkCheckinHandler extends CheckinHandler {
                 LOG.info("發現問題，顯示自訂對話框");
                 // 需要在 EDT 中顯示 UI
                 ApplicationManager.getApplication().invokeAndWait(() -> {
-                    // 先確保工具窗口顯示內容
-                    showProblemsInToolWindow(project, allProblems);
+                    // 修改：不再立即顯示工具窗口，直到用戶點擊「查看問題」按鈕時才顯示
+                    // showProblemsInToolWindow(project, allProblems);
 
                     // --- 修改點：使用 Messages.showDialog ---
                     String title = "國泰規範檢查結果";
-                    String message = "發現 " + allProblems.size() + " 個國泰規範問題。\n請查看「國泰規範檢查」工具窗口中的詳細信息。";
+                    String message = "發現 " + allProblems.size() + " 個國泰規範問題。\n選擇「查看問題」以查看詳細資訊。";
                     // 定義按鈕文字
-                    String[] buttons = {"繼續提交 (Continue)", "取消提交 (Cancel)", "查看問題 (Review Issues)"};
+                    String[] buttons = { "繼續提交 (Continue)", "取消提交 (Cancel)", "查看問題 (Review Issues)" };
                     // 顯示對話框
                     // 第三個參數是默認按鈕的索引 (0: 繼續, 1: 取消, 2: 查看)
                     // 第四個參數是焦點按鈕的索引
@@ -201,9 +214,9 @@ public class CathayBkCheckinHandler extends CheckinHandler {
                     int choice = Messages.showDialog(
                             project, // 父組件
                             message, // 顯示訊息
-                            title,   // 標題
+                            title, // 標題
                             buttons, // 按鈕文字陣列
-                            1,       // 默認選中的按鈕索引 (取消提交)
+                            1, // 默認選中的按鈕索引 (取消提交)
                             AllIcons.General.Warning // 圖標
                     );
 
@@ -215,11 +228,8 @@ public class CathayBkCheckinHandler extends CheckinHandler {
                             break;
                         case 2: // 查看問題 (Review Issues)
                             LOG.info("使用者選擇查看問題，取消本次提交");
-                            // 再次確保工具窗口可見並激活 (showProblemsInToolWindow 應該已處理)
-                            ToolWindow toolWindow = ToolWindowManager.getInstance(project).getToolWindow(TOOL_WINDOW_ID);
-                            if (toolWindow != null) {
-                                toolWindow.activate(null, true); // 強制激活
-                            }
+                            // 當用戶選擇「查看問題」時，才顯示工具窗口
+                            showProblemsInToolWindow(project, allProblems);
                             // 取消提交，讓使用者查看後決定
                             result.set(ReturnResult.CANCEL);
                             break;
@@ -255,6 +265,7 @@ public class CathayBkCheckinHandler extends CheckinHandler {
             toolWindow = toolWindowManager.registerToolWindow(
                     TOOL_WINDOW_ID, true, ToolWindowAnchor.BOTTOM, project, true);
             toolWindow.setIcon(AllIcons.General.InspectionsEye);
+            toolWindow.setStripeTitle("國泰規範"); // 設置側邊欄標籤
         }
 
         toolWindow.getContentManager().removeAllContents(true);
@@ -271,18 +282,59 @@ public class CathayBkCheckinHandler extends CheckinHandler {
      */
     private JComponent createProblemsPanel(Project project, List<ProblemInfo> problems) {
         JPanel mainPanel = new JPanel(new BorderLayout());
+        // 使用 IDEA 風格的背景色
+        mainPanel.setBackground(UIManager.getColor("Panel.background"));
+
+        // 使用三等分的布局
         JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        splitPane.setDividerLocation(300);
-        splitPane.setResizeWeight(0.7); // 讓樹佔更多空間
+        splitPane.setDividerLocation(350); // 調整分隔位置更合理
+        splitPane.setResizeWeight(0.6); // 保持樹區域占主要部分
+        splitPane.setBorder(null); // 移除邊框以獲得更整潔的外觀
+        splitPane.setDividerSize(3); // 設置分隔線更細，更符合 IDEA 風格
 
-        Tree problemTree = createProblemTree(project, problems); // 傳遞 ProblemInfo
+        // 創建問題樹，使用 IDEA 風格
+        Tree problemTree = createProblemTree(project, problems);
         JBScrollPane treeScrollPane = new JBScrollPane(problemTree);
+        treeScrollPane.setBorder(JBUI.Borders.empty()); // 無邊框效果
 
+        // 使用 IDEA 搜索欄加強工具窗體驗
+        SearchTextField searchField = new SearchTextField();
+        searchField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyReleased(KeyEvent e) {
+                String text = searchField.getText().toLowerCase();
+                filterTree(problemTree, text);
+            }
+        });
+
+        // 創建包含搜索框的頂部面板
+        JPanel treePanel = new JPanel(new BorderLayout());
+        treePanel.add(searchField, BorderLayout.NORTH);
+        treePanel.add(treeScrollPane, BorderLayout.CENTER);
+
+        // 詳細信息面板美化
         JEditorPane detailsPane = new JEditorPane();
         detailsPane.setEditable(false);
-        detailsPane.setContentType("text/html"); // 設置為 HTML 類型
-        detailsPane.setText("<html><body><h3>請選擇一個問題查看詳細信息</h3></body></html>");
+        detailsPane.setContentType("text/html");
+        detailsPane.setBackground(UIManager.getColor("EditorPane.background"));
+
+        // 使用超簡化的HTML，完全避免CSS
+        try {
+            detailsPane.setText("<html><body><center><br><br><br>" +
+                    "<p>ℹ️</p>" +
+                    "<p>請選擇一個問題查看詳細信息</p>" +
+                    "</center></body></html>");
+        } catch (Exception e) {
+            LOG.error("設置初始詳情面板HTML時出錯: " + e.getMessage(), e);
+            try {
+                detailsPane.setText("<html><body><p>請選擇一個問題</p></body></html>");
+            } catch (Exception ex) {
+                LOG.error("無法設置簡單的初始詳情面板HTML: " + ex.getMessage(), ex);
+            }
+        }
+
         JBScrollPane detailsScrollPane = new JBScrollPane(detailsPane);
+        detailsScrollPane.setBorder(JBUI.Borders.empty());
 
         problemTree.addTreeSelectionListener(e -> {
             TreePath path = e.getPath();
@@ -291,13 +343,89 @@ public class CathayBkCheckinHandler extends CheckinHandler {
                 Object userObject = node.getUserObject();
                 if (userObject instanceof ProblemInfoNode) {
                     ProblemInfoNode problemNode = (ProblemInfoNode) userObject;
-                    updateDetailsPane(project, detailsPane, problemNode.getProblemInfo()); // 傳遞 ProblemInfo
+                    updateDetailsPane(project, detailsPane, problemNode.getProblemInfo());
                 } else {
-                    detailsPane.setText("<html><body><h3>請選擇一個問題查看詳細信息</h3></body></html>");
+                    // 如果選擇了目錄節點，顯示摘要信息而不是空白
+                    if (userObject instanceof String) {
+                        String fileName = (String) userObject;
+                        int childCount = node.getChildCount();
+                        try {
+                            StringBuilder summary = new StringBuilder();
+                            summary.append("<html><body>");
+                            summary.append("<h2>").append(fileName).append("</h2>");
+                            summary.append("<p>此文件中發現 <b>").append(childCount).append("</b> 個問題</p>");
+                            if (childCount > 0) {
+                                summary.append("<p>點擊左側問題查看詳情，或雙擊問題直接跳轉到代碼位置</p>");
+                            }
+                            summary.append("</body></html>");
+                            detailsPane.setText(summary.toString());
+                        } catch (Exception ex) {
+                            LOG.error("設置文件節點摘要時出錯: " + ex.getMessage(), ex);
+                            try {
+                                detailsPane.setText(
+                                        "<html><body><p>" + fileName + " - " + childCount + " 個問題</p></body></html>");
+                            } catch (Exception e2) {
+                                LOG.error("無法設置簡單的文件節點摘要: " + e2.getMessage(), e2);
+                            }
+                        }
+                    } else {
+                        // 處理根節點選擇
+                        try {
+                            StringBuilder summary = new StringBuilder();
+                            summary.append("<html><body>");
+                            summary.append("<h2>國泰規範檢查結果</h2>");
+                            summary.append("<p>共發現 <b>").append(problems.size()).append("</b> 個問題，分布在 ")
+                                    .append(((DefaultMutableTreeNode) problemTree.getModel().getRoot()).getChildCount())
+                                    .append(" 個文件中</p>");
+
+                            // 按嚴重程度分類統計
+                            Map<ProblemHighlightType, Long> typeCounts = problems.stream()
+                                    .collect(Collectors.groupingBy(ProblemInfo::getHighlightType,
+                                            Collectors.counting()));
+
+                            if (!typeCounts.isEmpty()) {
+                                summary.append("<h3>問題分布</h3>");
+                                summary.append("<ul>");
+
+                                // 錯誤
+                                long errorCount = typeCounts.getOrDefault(ProblemHighlightType.ERROR, 0L);
+                                if (errorCount > 0) {
+                                    summary.append("<li><b>錯誤:</b> ").append(errorCount).append(" 個</li>");
+                                }
+
+                                // 警告
+                                long warningCount = typeCounts.getOrDefault(ProblemHighlightType.WARNING, 0L) +
+                                        typeCounts.getOrDefault(ProblemHighlightType.WEAK_WARNING, 0L);
+                                if (warningCount > 0) {
+                                    summary.append("<li><b>警告:</b> ").append(warningCount).append(" 個</li>");
+                                }
+
+                                // 資訊
+                                long infoCount = typeCounts.getOrDefault(ProblemHighlightType.INFORMATION, 0L);
+                                if (infoCount > 0) {
+                                    summary.append("<li><b>資訊:</b> ").append(infoCount).append(" 個</li>");
+                                }
+
+                                summary.append("</ul>");
+                            }
+
+                            summary.append("</body></html>");
+                            detailsPane.setText(summary.toString());
+                        } catch (Exception ex) {
+                            LOG.error("設置根節點摘要時出錯: " + ex.getMessage(), ex);
+                            try {
+                                detailsPane.setText(
+                                        "<html><body><p>國泰規範檢查結果 - " + problems.size() + " 個問題</p></body></html>");
+                            } catch (Exception e2) {
+                                LOG.error("無法設置簡單的根節點摘要: " + e2.getMessage(), e2);
+                            }
+                        }
+                    }
                 }
             }
         });
 
+        // 添加雙擊跳轉功能 (保持不變)
         problemTree.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -308,24 +436,110 @@ public class CathayBkCheckinHandler extends CheckinHandler {
                         Object userObject = node.getUserObject();
                         if (userObject instanceof ProblemInfoNode) {
                             ProblemInfoNode problemNode = (ProblemInfoNode) userObject;
-                            navigateToProblem(project, problemNode.getProblemInfo()); // 傳遞 ProblemInfo
+                            navigateToProblem(project, problemNode.getProblemInfo());
                         }
                     }
                 }
             }
         });
 
-        splitPane.setTopComponent(treeScrollPane);
+        splitPane.setTopComponent(treePanel);
         splitPane.setBottomComponent(detailsScrollPane);
 
-        JLabel headerLabel = new JLabel("發現 " + problems.size() + " 個國泰規範問題。請雙擊問題以導航到相應代碼位置。");
-        headerLabel.setBorder(JBUI.Borders.empty(5, 10));
-        headerLabel.setIcon(AllIcons.General.Warning);
+        // 頂部工具欄，包含標題和操作按鈕
+        JPanel toolbarPanel = new JPanel(new BorderLayout());
+        toolbarPanel.setBorder(JBUI.Borders.empty(6, 10));
 
-        mainPanel.add(headerLabel, BorderLayout.NORTH);
+        // 左側標題
+        JLabel titleLabel = new JLabel("國泰規範檢查結果");
+        titleLabel.setIcon(AllIcons.General.InspectionsEye);
+        titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, titleLabel.getFont().getSize() + 2));
+        toolbarPanel.add(titleLabel, BorderLayout.WEST);
+
+        // 右側按鈕組
+        JPanel actionsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
+
+        // 刷新按鈕
+        JButton refreshButton = new JButton("重新檢查", AllIcons.Actions.Refresh);
+        refreshButton.addActionListener(e -> Messages.showInfoMessage(project, "此功能將在未來版本實現", "功能預告"));
+
+        // 過濾按鈕
+        JButton filterButton = new JButton("過濾", AllIcons.General.Filter);
+        filterButton.addActionListener(e -> Messages.showInfoMessage(project, "此功能將在未來版本實現", "功能預告"));
+
+        // 幫助按鈕
+        JButton helpButton = new JButton("", AllIcons.Actions.Help);
+        helpButton.setToolTipText("顯示幫助");
+        helpButton.addActionListener(e -> Messages.showInfoMessage(project,
+                "雙擊問題：導航到代碼位置\n" +
+                        "選擇問題：在下方面板查看詳情\n" +
+                        "搜索框：輸入文字過濾問題",
+                "使用幫助"));
+
+        // 將按鈕添加到面板
+        actionsPanel.add(refreshButton);
+        actionsPanel.add(filterButton);
+        actionsPanel.add(helpButton);
+        toolbarPanel.add(actionsPanel, BorderLayout.EAST);
+
+        // 組合最終面板
+        mainPanel.add(toolbarPanel, BorderLayout.NORTH);
         mainPanel.add(splitPane, BorderLayout.CENTER);
 
+        // 自動展開樹
+        TreeUtil.expandAll(problemTree);
+
         return mainPanel;
+    }
+
+    /**
+     * 根據搜索文本過濾樹
+     */
+    private void filterTree(Tree tree, String searchText) {
+        DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
+        DefaultMutableTreeNode root = (DefaultMutableTreeNode) model.getRoot();
+
+        // 如果搜索文本為空，展開所有節點
+        if (searchText.isEmpty()) {
+            TreeUtil.expandAll(tree);
+            return;
+        }
+
+        // 關閉所有節點
+        TreeUtil.collapseAll(tree, 0);
+
+        // 遍歷樹節點查找匹配項
+        Enumeration<TreeNode> fileNodes = root.children();
+        while (fileNodes.hasMoreElements()) {
+            DefaultMutableTreeNode fileNode = (DefaultMutableTreeNode) fileNodes.nextElement();
+            boolean fileMatched = false;
+
+            // 檢查文件名是否匹配
+            if (fileNode.getUserObject().toString().toLowerCase().contains(searchText)) {
+                fileMatched = true;
+            }
+
+            // 檢查問題是否匹配
+            Enumeration<TreeNode> problemNodes = fileNode.children();
+            while (problemNodes.hasMoreElements()) {
+                DefaultMutableTreeNode problemNode = (DefaultMutableTreeNode) problemNodes.nextElement();
+                if (problemNode.getUserObject() instanceof ProblemInfoNode) {
+                    ProblemInfoNode infoNode = (ProblemInfoNode) problemNode.getUserObject();
+                    if (infoNode.getShortDescription().toLowerCase().contains(searchText)) {
+                        fileMatched = true;
+                        // 展開到這個問題節點
+                        TreePath path = new TreePath(model.getPathToRoot(problemNode));
+                        tree.expandPath(path);
+                    }
+                }
+            }
+
+            // 如果文件節點匹配，展開它
+            if (fileMatched) {
+                TreePath path = new TreePath(model.getPathToRoot(fileNode));
+                tree.expandPath(path);
+            }
+        }
     }
 
     /**
@@ -349,124 +563,160 @@ public class CathayBkCheckinHandler extends CheckinHandler {
                     DefaultMutableTreeNode fileNode = new DefaultMutableTreeNode(fileName);
                     root.add(fileNode);
 
-                    for (ProblemInfo problem : fileProblems) {
-                        // 只添加有效元素的問題節點
-                        if (problem.getElement() != null && problem.getElement().isValid()) {
-                            DefaultMutableTreeNode problemNode = new DefaultMutableTreeNode(new ProblemInfoNode(problem));
-                            fileNode.add(problemNode);
-                        } else {
-                            LOG.warn("跳過創建無效元素的樹節點: " + problem.getDescription());
-                        }
-                    }
+                    // 按問題嚴重程度排序
+                    fileProblems.stream()
+                            .filter(p -> p.getElement() != null && p.getElement().isValid())
+                            .sorted((p1, p2) -> compareHighlightType(p1.getHighlightType(), p2.getHighlightType()))
+                            .forEach(problem -> {
+                                DefaultMutableTreeNode problemNode = new DefaultMutableTreeNode(
+                                        new ProblemInfoNode(problem));
+                                fileNode.add(problemNode);
+                            });
                 });
 
         Tree tree = new Tree(treeModel);
         tree.setCellRenderer(new DefaultTreeCellRenderer() {
             @Override
             public Component getTreeCellRendererComponent(JTree tree, Object value, boolean sel, boolean expanded,
-                                                          boolean leaf, int row, boolean hasFocus) {
+                    boolean leaf, int row, boolean hasFocus) {
                 super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
+                // 提高文字對比度
+                setForeground(UIManager.getColor("Tree.foreground"));
+
                 Object userObject = ((DefaultMutableTreeNode) value).getUserObject();
                 if (userObject instanceof ProblemInfoNode) {
                     ProblemInfoNode problemNode = (ProblemInfoNode) userObject;
                     setText(problemNode.getShortDescription());
 
+                    // 根據問題類型設置圖標
                     ProblemHighlightType highlightType = problemNode.getProblemInfo().getHighlightType();
                     if (highlightType == ProblemHighlightType.ERROR) {
                         setIcon(AllIcons.General.Error);
-                    } else if (highlightType == ProblemHighlightType.WARNING || highlightType == ProblemHighlightType.WEAK_WARNING) {
+                    } else if (highlightType == ProblemHighlightType.WARNING
+                            || highlightType == ProblemHighlightType.WEAK_WARNING) {
                         setIcon(AllIcons.General.Warning);
                     } else {
-                        setIcon(AllIcons.General.Information); // 例如 INFO
+                        setIcon(AllIcons.General.Information);
                     }
                 } else if (userObject instanceof String) {
+                    // 美化文件節點
                     setText(userObject.toString());
-                    setIcon(AllIcons.Nodes.Folder);
+                    // 根據檔案類型選擇圖示
+                    if (userObject.toString().endsWith(".java")) {
+                        setIcon(AllIcons.FileTypes.Java);
+                    } else {
+                        setIcon(AllIcons.Nodes.Folder);
+                    }
                 } else {
                     // 根節點
-                    setText("規範問題"); // 確保根節點有文字
+                    setText("規範問題");
                     setIcon(AllIcons.General.InspectionsEye);
                 }
                 return this;
             }
         });
 
-        TreeUtil.expandAll(tree);
         return tree;
     }
 
     /**
+     * 比較問題嚴重程度，用於排序
+     */
+    private int compareHighlightType(ProblemHighlightType type1, ProblemHighlightType type2) {
+        // 錯誤 > 警告 > 弱警告 > 信息
+        int priority1 = getPriorityForType(type1);
+        int priority2 = getPriorityForType(type2);
+        return Integer.compare(priority1, priority2);
+    }
+
+    private int getPriorityForType(ProblemHighlightType type) {
+        if (type == ProblemHighlightType.ERROR)
+            return 0;
+        if (type == ProblemHighlightType.WARNING)
+            return 1;
+        if (type == ProblemHighlightType.WEAK_WARNING)
+            return 2;
+        return 3; // 信息和其他
+    }
+
+    /**
      * 更新詳細信息面板 (使用 ProblemInfo)
-     * (簡化 CSS 樣式以避免渲染錯誤)
      */
     private void updateDetailsPane(Project project, JEditorPane detailsPane, ProblemInfo problem) {
         PsiElement element = problem.getElement();
         PsiFile file = (element != null && element.isValid()) ? element.getContainingFile() : null;
 
-        StringBuilder html = new StringBuilder();
-        html.append("<html><body style='font-family: sans-serif; margin: 10px;'>");
-        html.append("<h2 style='color: #2c3e50;'>問題詳情</h2>");
-        html.append("<p><b>描述：</b> ").append(escapeHtml(problem.getDescription())).append("</p>");
-
-        if (file != null) {
-            html.append("<p><b>文件：</b> ").append(escapeHtml(file.getName())).append("</p>");
-            int lineNumber = getLineNumber(project, element);
-            if (lineNumber > 0) {
-                html.append("<p><b>行號：</b> ").append(lineNumber).append("</p>");
-            }
-        } else {
-            html.append("<p><b>文件：</b> 無法確定 (元素可能已失效)</p>");
-        }
-
-        if (element != null && element.isValid()) {
-            html.append("<p><b>代碼片段：</b></p>");
-            try {
-                String elementText = ReadAction.compute(() -> element.getText());
-                // --- 修改點：簡化 <pre> 的 style ---
-                html.append("<pre style='background-color:#f0f0f0; padding:8px; border:1px solid #ccc; white-space: pre-wrap;'>") // 移除了 border-radius, overflow, word-wrap
-                        .append(escapeHtml(elementText))
-                        .append("</pre>");
-            } catch (Exception e) {
-                html.append("<pre style='color:red;'>無法顯示代碼片段</pre>");
-                LOG.warn("無法獲取問題元素的文本: " + e.getMessage());
-            }
-        } else {
-            html.append("<p><b>代碼片段：</b> 無法顯示 (元素可能已失效)</p>");
-        }
-
-        html.append("<p><b>嚴重程度：</b> ");
-        ProblemHighlightType highlightType = problem.getHighlightType();
-        // (嚴重程度部分的 HTML 保持不變)
-        if (highlightType == ProblemHighlightType.ERROR) {
-            html.append("<span style='color:red; font-weight: bold;'>錯誤</span>");
-        } else if (highlightType == ProblemHighlightType.WARNING || highlightType == ProblemHighlightType.WEAK_WARNING) {
-            html.append("<span style='color:orange; font-weight: bold;'>警告</span>");
-        } else {
-            html.append("<span style='color:gray; font-weight: bold;'>資訊</span>");
-        }
-        html.append("</p>");
-
-        // 建議部分
-        if (problem.getSuggestionSource() != null || problem.getSuggestedValue() != null) {
-            html.append("<h3 style='color: #2c3e50; margin-top: 20px;'>建議</h3>");
-            if (problem.getSuggestionSource() != null) {
-                html.append("<p><b>來源：</b> ").append(escapeHtml(problem.getSuggestionSource())).append("</p>");
-            }
-            if (problem.getSuggestedValue() != null) {
-                // --- 修改點：簡化 <code> 的 style ---
-                html.append("<p><b>建議值：</b><br><code style='background-color:#e0e0e0; padding: 2px 5px;'>") // 移除了 border-radius
-                        .append(escapeHtml(problem.getSuggestedValue()))
-                        .append("</code></p>");
-            }
-        } else {
-            html.append("<h3 style='color: #2c3e50; margin-top: 20px;'>修復建議</h3>");
-            html.append("<p>請根據問題描述手動修改代碼。</p>");
-        }
-
-        html.append("<p style='margin-top: 15px; font-style: italic;'>提示：雙擊問題可直接跳轉到對應代碼位置</p>");
-        html.append("</body></html>");
-
         try {
+            // 使用極簡HTML，完全避免CSS樣式
+            StringBuilder html = new StringBuilder();
+            html.append("<html><body>");
+
+            // 標題
+            html.append("<h2>問題詳情</h2>");
+            html.append("<hr>");
+
+            // 問題嚴重程度
+            ProblemHighlightType highlightType = problem.getHighlightType();
+            String severityText = highlightType == ProblemHighlightType.ERROR ? "錯誤"
+                    : (highlightType == ProblemHighlightType.WARNING
+                            || highlightType == ProblemHighlightType.WEAK_WARNING)
+                                    ? "警告"
+                                    : "資訊";
+
+            html.append("<p><b>嚴重程度：</b> ").append(severityText).append("</p>");
+
+            // 問題描述
+            html.append("<p><b>描述：</b><br>").append(escapeHtml(problem.getDescription())).append("</p>");
+
+            // 文件信息
+            if (file != null) {
+                html.append("<p><b>文件：</b> ").append(escapeHtml(file.getName())).append("</p>");
+                int lineNumber = getLineNumber(project, element);
+                if (lineNumber > 0) {
+                    html.append("<p><b>行號：</b> ").append(lineNumber).append("</p>");
+                }
+            } else {
+                html.append("<p><b>文件：</b> 無法確定 (元素可能已失效)</p>");
+            }
+
+            // 代碼片段
+            if (element != null && element.isValid()) {
+                html.append("<h3>代碼片段</h3>");
+                try {
+                    String elementText = ReadAction.compute(() -> element.getText());
+                    html.append("<pre>").append(escapeHtml(elementText)).append("</pre>");
+                } catch (Exception e) {
+                    html.append("<p>無法顯示代碼片段</p>");
+                    LOG.warn("無法獲取問題元素的文本: " + e.getMessage());
+                }
+            }
+
+            // 建議部分
+            if (problem.getSuggestionSource() != null || problem.getSuggestedValue() != null) {
+                html.append("<h3>建議</h3>");
+
+                if (problem.getSuggestionSource() != null) {
+                    html.append("<p><b>來源：</b> ").append(escapeHtml(problem.getSuggestionSource())).append("</p>");
+                }
+
+                if (problem.getSuggestedValue() != null) {
+                    html.append("<p><b>建議值：</b></p>");
+                    html.append("<pre>").append(escapeHtml(problem.getSuggestedValue())).append("</pre>");
+                }
+            } else {
+                html.append("<h3>修復建議</h3>");
+                html.append("<p>請根據問題描述手動修改代碼。</p>");
+            }
+
+            // 快速操作提示
+            html.append("<h3>快速操作</h3>");
+            html.append("<ul>");
+            html.append("<li>雙擊問題樹中的問題項可直接跳轉至代碼位置</li>");
+            html.append("<li>修復後，重新運行檢查以更新結果</li>");
+            html.append("</ul>");
+
+            html.append("</body></html>");
+
             // 在設置文本之前，確保 detailsPane 仍然可用
             if (detailsPane.isDisplayable()) {
                 detailsPane.setText(html.toString());
@@ -477,9 +727,21 @@ public class CathayBkCheckinHandler extends CheckinHandler {
         } catch (Exception e) {
             // 捕獲 setText 可能拋出的其他異常
             LOG.error("Error setting text in JEditorPane: " + e.getMessage(), e);
-            // 可以嘗試設置一個簡單的錯誤訊息
-            detailsPane.setText("<html><body><p style='color:red'>顯示問題詳情時發生錯誤。</p></body></html>");
+            // 嘗試設置一個超級簡單的錯誤訊息，不使用任何CSS
+            try {
+                detailsPane.setText("<html><body><p>顯示問題詳情時發生錯誤。</p></body></html>");
+            } catch (Exception ex) {
+                LOG.error("無法設置簡單的錯誤訊息: " + ex.getMessage(), ex);
+            }
         }
+    }
+
+    /**
+     * 獲取系統默認字體
+     */
+    private String getDefaultFontFamily() {
+        Font defaultFont = UIManager.getFont("Label.font");
+        return defaultFont != null ? defaultFont.getFamily() : "sans-serif";
     }
 
     /**
@@ -532,7 +794,8 @@ public class CathayBkCheckinHandler extends CheckinHandler {
             if (safeDesc.length() > MAX_LEN - lineSuffix.length()) {
                 // 計算截斷位置，確保不切斷 UTF-8 字符
                 int endIndex = MAX_LEN - lineSuffix.length() - 3;
-                if (endIndex < 0) endIndex = 0; // 避免負數索引
+                if (endIndex < 0)
+                    endIndex = 0; // 避免負數索引
                 safeDesc = safeDesc.substring(0, endIndex) + "...";
             }
             return safeDesc + lineSuffix;
@@ -564,7 +827,8 @@ public class CathayBkCheckinHandler extends CheckinHandler {
                     if (offset >= 0 && offset <= document.getTextLength()) {
                         return document.getLineNumber(offset) + 1;
                     } else {
-                        LOG.warn("問題元素的偏移量超出文檔範圍: offset=" + offset + ", length=" + document.getTextLength() + ", elementText=" + element.getText());
+                        LOG.warn("問題元素的偏移量超出文檔範圍: offset=" + offset + ", length=" + document.getTextLength()
+                                + ", elementText=" + element.getText());
                         return -1;
                     }
                 } catch (IndexOutOfBoundsException e) {
@@ -579,7 +843,6 @@ public class CathayBkCheckinHandler extends CheckinHandler {
         });
     }
 
-
     /**
      * 輔助方法：HTML 轉義，將特殊字符替換為 HTML 實體。
      *
@@ -587,7 +850,8 @@ public class CathayBkCheckinHandler extends CheckinHandler {
      * @return 轉義後的 HTML 安全文本
      */
     private static String escapeHtml(String text) {
-        if (text == null) return "";
+        if (text == null)
+            return "";
         // 注意替換的順序，& 必須第一個替換
         return text.replace("&", "&")
                 .replace("<", "<")
