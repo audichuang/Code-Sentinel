@@ -1,11 +1,15 @@
 package com.cathaybk.codingassistant.fix;
 
 // 1. 引入 PriorityAction 介面
+
 import com.intellij.codeInsight.intention.PriorityAction;
 import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.openapi.project.Project;
-import com.intellij.psi.*;
+import com.intellij.psi.JavaPsiFacade;
+import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiElementFactory;
+import com.intellij.psi.PsiField;
 import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.psi.javadoc.PsiDocComment;
 import com.intellij.psi.util.PsiTreeUtil;
@@ -24,6 +28,7 @@ public class AddFieldJavadocFix implements LocalQuickFix, PriorityAction {
 
     /**
      * 建構子。
+     *
      * @param fieldTypeName 欄位的類型名稱，將用於 Javadoc 內容。
      */
     public AddFieldJavadocFix(@NotNull String fieldTypeName) {
@@ -92,10 +97,12 @@ public class AddFieldJavadocFix implements LocalQuickFix, PriorityAction {
     }
 
     // --- 3. 實作 PriorityAction 介面的 getPriority 方法 ---
+
     /**
      * 指定此快速修復的優先級。
      * Priority.HIGH 會使其在 Alt+Enter 列表中顯示得更靠前。
      * 你也可以試試 Priority.NORMAL 如果 HIGH 太高了。
+     *
      * @return 優先級
      */
     @NotNull

@@ -1,0 +1,3 @@
+package com.cathaybk.codingassistant.vcs.service;
+
+// ... a lot of existing code ...

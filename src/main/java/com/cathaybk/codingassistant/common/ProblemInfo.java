@@ -24,7 +24,7 @@ public class ProblemInfo {
      * @param highlightType 問題的高亮類型 (嚴重程度)
      */
     public ProblemInfo(@NotNull PsiElement element, @NotNull String description,
-            @NotNull ProblemHighlightType highlightType) {
+                       @NotNull ProblemHighlightType highlightType) {
         this(element, description, highlightType, null, null);
     }
 
@@ -38,8 +38,8 @@ public class ProblemInfo {
      * @param suggestedValue   建議值 (如: API ID)
      */
     public ProblemInfo(@NotNull PsiElement element, @NotNull String description,
-            @NotNull ProblemHighlightType highlightType,
-            @Nullable String suggestionSource, @Nullable String suggestedValue) {
+                       @NotNull ProblemHighlightType highlightType,
+                       @Nullable String suggestionSource, @Nullable String suggestedValue) {
         this.element = element;
         this.description = description;
         this.highlightType = highlightType;
