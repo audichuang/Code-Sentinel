@@ -34,6 +34,7 @@ import com.intellij.ui.content.Content;
 import com.intellij.ui.content.ContentFactory;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import com.cathaybk.codingassistant.settings.GitSettings;
 
 import javax.swing.*;
 import java.awt.*;
@@ -67,10 +68,12 @@ public class CathayBkCheckinHandler extends CheckinHandler {
     }
 
     private static int getLineNumber(@Nullable Project project, @Nullable PsiElement element) {
-        if (element == null || project == null || !ReadAction.compute(element::isValid)) return -1;
+        if (element == null || project == null || !ReadAction.compute(element::isValid))
+            return -1;
         return ReadAction.compute(() -> {
             PsiFile containingFile = element.getContainingFile();
-            if (containingFile == null) return -1;
+            if (containingFile == null)
+                return -1;
             Document document = PsiDocumentManager.getInstance(project).getDocument(containingFile);
             if (document != null) {
                 try {
@@ -90,16 +93,25 @@ public class CathayBkCheckinHandler extends CheckinHandler {
     public ReturnResult beforeCheckin() {
         LOG.info("CathayBk Checkin Handler beforeCheckin 被呼叫！");
 
-        // 添加明顯的訊息，表示開始執行 Git 相關操作
-        LOG.info("========== 開始執行 Git 相關操作 ==========");
+        // 讀取 Git 檢查設定
+        GitSettings settings = GitSettings.getInstance(project);
+        boolean shouldCheckGit = settings.isCheckGitBranch();
 
-        // 首先執行 Git 相關檢查
-        ReturnResult gitCheckResult = checkGitStatus();
-        if (gitCheckResult != ReturnResult.COMMIT) {
-            return gitCheckResult;
+        if (shouldCheckGit) {
+            // 添加明顯的訊息，表示開始執行 Git 相關操作
+            LOG.info("========== 開始執行 Git 相關操作 ==========");
+            // 首先執行 Git 相關檢查
+            ReturnResult gitCheckResult = checkGitStatus();
+            if (gitCheckResult != ReturnResult.COMMIT) {
+                LOG.info("Git 檢查未通過或用戶取消，終止提交。");
+                return gitCheckResult;
+            }
+            LOG.info("========== Git 相關操作結束 ==========");
+        } else {
+            LOG.info("Git 分支檢查設定已關閉，跳過 Git 相關操作。");
         }
 
-        // 如果 Git 檢查通過，則繼續執行代碼質量檢查
+        // 無論 Git 檢查是否執行（或是否通過），都繼續執行代碼質量檢查
         LOG.info("========== 開始執行代碼檢查 ==========");
         return checkCodeQuality();
     }
@@ -178,7 +190,8 @@ public class CathayBkCheckinHandler extends CheckinHandler {
         ToolWindow toolWindow = toolWindowManager.getToolWindow(TOOL_WINDOW_ID);
 
         if (toolWindow == null) {
-            toolWindow = toolWindowManager.registerToolWindow(TOOL_WINDOW_ID, true, ToolWindowAnchor.BOTTOM, project, true);
+            toolWindow = toolWindowManager.registerToolWindow(TOOL_WINDOW_ID, true, ToolWindowAnchor.BOTTOM, project,
+                    true);
             toolWindow.setIcon(AllIcons.General.InspectionsEye);
             toolWindow.setStripeTitle("國泰規範");
         }
@@ -199,7 +212,8 @@ public class CathayBkCheckinHandler extends CheckinHandler {
         ApplicationManager.getApplication().invokeLater(() -> {
             finalToolWindow.show(() -> {
                 int maxHeight = 200;
-                finalToolWindow.getComponent().setPreferredSize(new Dimension(finalToolWindow.getComponent().getWidth(), maxHeight));
+                finalToolWindow.getComponent()
+                        .setPreferredSize(new Dimension(finalToolWindow.getComponent().getWidth(), maxHeight));
                 SwingUtilities.invokeLater(() -> {
                     JComponent component = finalToolWindow.getComponent();
                     if (component != null) {
@@ -209,7 +223,8 @@ public class CathayBkCheckinHandler extends CheckinHandler {
                         component.repaint();
                     }
                     if (currentProblemsPanel != null) {
-                        currentProblemsPanel.setPreferredSize(new Dimension(currentProblemsPanel.getWidth(), maxHeight - 40));
+                        currentProblemsPanel
+                                .setPreferredSize(new Dimension(currentProblemsPanel.getWidth(), maxHeight - 40));
                         currentProblemsPanel.revalidate();
                     }
                 });
@@ -244,7 +259,8 @@ public class CathayBkCheckinHandler extends CheckinHandler {
             return;
         }
 
-        ProblemDescriptor dummyDescriptor = ReadAction.compute(() -> createDummyDescriptor(element, problem.getDescription()));
+        ProblemDescriptor dummyDescriptor = ReadAction
+                .compute(() -> createDummyDescriptor(element, problem.getDescription()));
         WriteCommandAction.runWriteCommandAction(project, fixToApply.getName(), null, () -> {
             try {
                 fixToApply.applyFix(project, dummyDescriptor);
@@ -302,7 +318,9 @@ public class CathayBkCheckinHandler extends CheckinHandler {
                 }
 
                 if (indicator != null) {
-                    indicator.setText2("修復問題 " + (i + 1) + "/" + totalProblems + ": " + problem.getDescription().substring(0, Math.min(50, problem.getDescription().length())) + (problem.getDescription().length() > 50 ? "..." : ""));
+                    indicator.setText2("修復問題 " + (i + 1) + "/" + totalProblems + ": "
+                            + problem.getDescription().substring(0, Math.min(50, problem.getDescription().length()))
+                            + (problem.getDescription().length() > 50 ? "..." : ""));
                 }
 
                 final LocalQuickFix fixToApply = ReadAction.compute(() -> determineQuickFix(problem));
@@ -314,7 +332,8 @@ public class CathayBkCheckinHandler extends CheckinHandler {
                 }
 
                 try {
-                    final ProblemDescriptor dummyDescriptor = ReadAction.compute(() -> createDummyDescriptor(element, problem.getDescription()));
+                    final ProblemDescriptor dummyDescriptor = ReadAction
+                            .compute(() -> createDummyDescriptor(element, problem.getDescription()));
 
                     WriteCommandAction.runWriteCommandAction(project, () -> {
                         try {
@@ -343,7 +362,9 @@ public class CathayBkCheckinHandler extends CheckinHandler {
                 }
                 updateToolWindowContentTitle();
 
-                String message = "修復完成!\n\n成功修復: " + fixedCount.get() + " 個問題\n" + (failedCount.get() > 0 ? "無法修復: " + failedCount.get() + " 個問題" : "") + (indicator != null && indicator.isCanceled() ? "\n(操作被用戶取消)" : "");
+                String message = "修復完成!\n\n成功修復: " + fixedCount.get() + " 個問題\n"
+                        + (failedCount.get() > 0 ? "無法修復: " + failedCount.get() + " 個問題" : "")
+                        + (indicator != null && indicator.isCanceled() ? "\n(操作被用戶取消)" : "");
                 if (fixedCount.get() > 0 || failedCount.get() > 0) {
                     Messages.showInfoMessage(project, message, "一鍵修復結果");
                 } else {
@@ -366,7 +387,9 @@ public class CathayBkCheckinHandler extends CheckinHandler {
                 content = toolWindow.getContentManager().getContent(0);
             }
             if (content != null) {
-                int count = (currentProblemsPanel != null && currentProblemsPanel.getCurrentProblems() != null) ? currentProblemsPanel.getCurrentProblems().size() : (collectedProblems != null ? collectedProblems.size() : 0);
+                int count = (currentProblemsPanel != null && currentProblemsPanel.getCurrentProblems() != null)
+                        ? currentProblemsPanel.getCurrentProblems().size()
+                        : (collectedProblems != null ? collectedProblems.size() : 0);
                 content.setDisplayName("檢查結果 (" + count + ")");
             } else {
                 LOG.warn("無法更新工具窗口標題：找不到 Content。ToolWindow visible: " + toolWindow.isVisible());
@@ -380,13 +403,16 @@ public class CathayBkCheckinHandler extends CheckinHandler {
         String description = problem.getDescription();
         PsiElement element = problem.getElement();
 
-        if (element == null) return null;
+        if (element == null)
+            return null;
 
         if (problem.getSuggestionSource() != null && problem.getSuggestedValue() != null) {
-            if (description.contains("API 方法缺少") && (element instanceof PsiIdentifier || element instanceof PsiMethod)) {
+            if (description.contains("API 方法缺少")
+                    && (element instanceof PsiIdentifier || element instanceof PsiMethod)) {
                 return new AddControllerApiIdFromServiceFix(problem.getSuggestionSource(), problem.getSuggestedValue());
             }
-            if (description.contains("Service 類別缺少") && (element instanceof PsiIdentifier || element instanceof PsiClass || element instanceof PsiKeyword)) {
+            if (description.contains("Service 類別缺少") && (element instanceof PsiIdentifier || element instanceof PsiClass
+                    || element instanceof PsiKeyword)) {
                 return new AddServiceApiIdQuickFix(problem.getSuggestionSource(), problem.getSuggestedValue());
             }
         }
@@ -394,13 +420,15 @@ public class CathayBkCheckinHandler extends CheckinHandler {
         if (description.contains("API 方法缺少") && (element instanceof PsiIdentifier || element instanceof PsiMethod)) {
             return new AddApiIdDocFix();
         }
-        if (description.contains("Service 類別缺少") && (element instanceof PsiIdentifier || element instanceof PsiClass || element instanceof PsiKeyword)) {
+        if (description.contains("Service 類別缺少")
+                && (element instanceof PsiIdentifier || element instanceof PsiClass || element instanceof PsiKeyword)) {
             return new AddApiIdDocFix();
         }
         if (description.contains("注入的欄位") && description.contains("缺少 Javadoc")) {
             final PsiField field = ReadAction.compute(() -> {
                 PsiField initialField = PsiTreeUtil.getParentOfType(element, PsiField.class, false);
-                if (initialField == null && element instanceof PsiField) return (PsiField) element;
+                if (initialField == null && element instanceof PsiField)
+                    return (PsiField) element;
                 return initialField;
             });
 

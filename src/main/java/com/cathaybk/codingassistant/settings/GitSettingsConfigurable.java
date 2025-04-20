@@ -14,14 +14,17 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * 為 Git 設置提供配置界面
- * 
+ *
  * 此類實現了 IntelliJ IDEA 的 Configurable 接口，提供以下功能：
  * 1. Git 分支檢查設置 - 配置目標分支以便在提交前檢查
  * 2. Javadoc 生成設置 - 控制自動生成 Javadoc 的格式和內容
- * 
+ *
  * 界面使用 GridBagLayout 實現靈活的佈局，並遵循 IntelliJ IDEA 的 UI 設計指南
  */
 public class GitSettingsConfigurable implements Configurable {
@@ -38,6 +41,52 @@ public class GitSettingsConfigurable implements Configurable {
     /** Javadoc 生成選項複選框 */
     private JCheckBox generateFullJavadocCheckbox;
 
+    /** Git 檢查開關複選框 */
+    private JCheckBox checkGitBranchCheckbox;
+
+    /** Git 分支名稱的非法字符正則表達式 */
+    private static final Pattern INVALID_BRANCH_CHARS = Pattern.compile(".*[~^:?*\\[\\\\].*");
+
+    /** Git 分支名稱的各種驗證規則 */
+    private static final BranchValidationRule[] BRANCH_VALIDATION_RULES = {
+            new BranchValidationRule(
+                    name -> name.contains(" ") || name.contains("\t"),
+                    "包含空格"
+            ),
+            new BranchValidationRule(
+                    name -> name.startsWith(".") || name.startsWith("/"),
+                    "不能以 '.' 或 '/' 開頭"
+            ),
+            new BranchValidationRule(
+                    name -> name.endsWith(".") || name.endsWith("/"),
+                    "不能以 '.' 或 '/' 結尾"
+            ),
+            new BranchValidationRule(
+                    name -> name.contains(".."),
+                    "不能包含 '..'"
+            ),
+            new BranchValidationRule(
+                    name -> name.contains("//"),
+                    "不能包含 '//'"
+            ),
+            new BranchValidationRule(
+                    name -> name.contains("@{"),
+                    "不能包含 '@{'"
+            ),
+            new BranchValidationRule(
+                    name -> name.endsWith(".lock"),
+                    "不能以 '.lock' 結尾"
+            ),
+            new BranchValidationRule(
+                    name -> name.equals("@"),
+                    "分支名稱不能是 '@'"
+            ),
+            new BranchValidationRule(
+                    name -> INVALID_BRANCH_CHARS.matcher(name).matches(),
+                    "包含無效字符 (例如 ~^:?*[\\)"
+            )
+    };
+
     /**
      * 默認構造函數，嘗試獲取當前活動項目
      * 當作為應用程序級配置使用時使用此構造函數
@@ -52,7 +101,7 @@ public class GitSettingsConfigurable implements Configurable {
 
     /**
      * 項目特定構造函數
-     * 
+     *
      * @param project 要為其配置設置的項目
      */
     public GitSettingsConfigurable(Project project) {
@@ -61,7 +110,7 @@ public class GitSettingsConfigurable implements Configurable {
 
     /**
      * 返回配置頁面的顯示名稱
-     * 
+     *
      * @return 配置頁面標題
      */
     @Nls(capitalization = Nls.Capitalization.Title)
@@ -73,7 +122,7 @@ public class GitSettingsConfigurable implements Configurable {
     /**
      * 創建配置界面組件
      * 此方法創建並返回完整的設置界面
-     * 
+     *
      * @return 包含所有配置選項的 Swing 組件
      */
     @Nullable
@@ -82,7 +131,7 @@ public class GitSettingsConfigurable implements Configurable {
         // --- Main Panel ---
         myMainPanel = new JPanel();
         myMainPanel.setLayout(new GridBagLayout());
-        // Make main panel transparent
+        // 使面板透明
         myMainPanel.setOpaque(false);
 
         myMainPanel.setBorder(JBUI.Borders.empty(12));
@@ -105,6 +154,13 @@ public class GitSettingsConfigurable implements Configurable {
         gitGbc.gridy = GridBagConstraints.RELATIVE;
         gitGbc.insets = JBUI.insets(4);
         gitGbc.anchor = GridBagConstraints.WEST;
+
+        // 新增：Git 檢查開關
+        checkGitBranchCheckbox = new JCheckBox("啟用 Git 分支落後檢查 (提交前)");
+        checkGitBranchCheckbox.setOpaque(false);
+        checkGitBranchCheckbox.setToolTipText("若關閉，提交前將不執行 Git fetch 和分支比較。");
+        checkGitBranchCheckbox.setBorder(JBUI.Borders.emptyBottom(8));
+        gitPanel.add(checkGitBranchCheckbox, gitGbc);
 
         // 使用 JTextPane 替代 JTextArea 以獲得更好的文字渲染
         JTextPane gitHelpText = new JTextPane();
@@ -230,7 +286,7 @@ public class GitSettingsConfigurable implements Configurable {
         gbc.weighty = 1.0;
         gbc.fill = GridBagConstraints.BOTH;
         JPanel filler = new JPanel();
-        // Make filler transparent
+        // 使填充面板透明
         filler.setOpaque(false);
         myMainPanel.add(filler, gbc);
 
@@ -242,7 +298,7 @@ public class GitSettingsConfigurable implements Configurable {
 
     /**
      * 創建帶有美觀邊框的面板
-     * 
+     *
      * @param title 面板標題
      * @return 帶有標題邊框的配置面板
      */
@@ -264,7 +320,7 @@ public class GitSettingsConfigurable implements Configurable {
 
     /**
      * 創建風格化按鈕
-     * 
+     *
      * @param text 按鈕文字
      * @return 風格化的按鈕
      */
@@ -278,19 +334,19 @@ public class GitSettingsConfigurable implements Configurable {
 
     /**
      * 配置示例文本區域的外觀
-     * 
+     *
      * @param textArea 要配置的文本區域
      */
     private void configureExampleTextArea(JTextArea textArea) {
         textArea.setEditable(false);
-        // Use theme color for background
+        // 使用主題顏色作為背景
         textArea.setBackground(UIManager.getColor("EditorPane.background"));
 
         Font monoFont = new Font(Font.MONOSPACED, Font.PLAIN,
                 UIManager.getFont("Label.font").getSize());
         textArea.setFont(monoFont);
 
-        // Use theme color for border
+        // 使用主題顏色作為邊框
         textArea.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(UIManager.getColor("Component.borderColor")),
                 BorderFactory.createEmptyBorder(8, 12, 8, 12) // 增加內部填充
@@ -307,55 +363,65 @@ public class GitSettingsConfigurable implements Configurable {
         if (project == null) {
             targetBranchesField.setText("dev");
             generateFullJavadocCheckbox.setSelected(true); // 預設勾選
+            checkGitBranchCheckbox.setSelected(true); // 預設勾選
             return;
         }
 
         GitSettings settings = GitSettings.getInstance(project);
         targetBranchesField.setText(settings.getTargetBranchesAsString());
         generateFullJavadocCheckbox.setSelected(settings.isGenerateFullJavadoc());
-    }
-
-    /**
-     * 將所有設定重置為預設值
-     * 注意：目前單獨按鈕處理分支重置，此方法僅作為備用
-     */
-    private void resetToDefaults() {
-        // 這個方法現在可能不太需要，或者可以只重置所有設定為預設
-        // 按鈕已經分離，單獨處理分支重置
-        if (project == null) {
-            targetBranchesField.setText("dev");
-            generateFullJavadocCheckbox.setSelected(true);
-            return;
-        }
-
-        GitSettings settings = GitSettings.getInstance(project);
-        settings.setTargetBranchesFromString("dev");
-        settings.setGenerateFullJavadoc(true);
-        // 注意：調用 loadSettings 會覆蓋這裡的修改，所以要么不調用，要么只修改 settings
+        // 加載 Git 檢查開關設定
+        checkGitBranchCheckbox.setSelected(settings.isCheckGitBranch());
     }
 
     /**
      * 檢查設定是否已被修改
-     * 
+     *
      * @return 如果任何設定已被修改則返回 true
      */
     @Override
     public boolean isModified() {
         if (project == null) {
-            return !targetBranchesField.getText().equals("dev");
+            // 如果項目為空，與默認值比較
+            boolean branchesModified = !targetBranchesField.getText().equals("dev");
+            boolean javadocModified = generateFullJavadocCheckbox.isSelected() != true;
+            boolean gitCheckModified = checkGitBranchCheckbox.isSelected() != true;
+            return branchesModified || javadocModified || gitCheckModified;
         }
 
         GitSettings settings = GitSettings.getInstance(project);
         boolean branchesModified = !targetBranchesField.getText().equals(settings.getTargetBranchesAsString());
-        // 檢查 Javadoc 設定是否被修改
         boolean javadocModified = generateFullJavadocCheckbox.isSelected() != settings.isGenerateFullJavadoc();
-        return branchesModified || javadocModified;
+        // 檢查 Git 檢查開關是否被修改
+        boolean gitCheckModified = checkGitBranchCheckbox.isSelected() != settings.isCheckGitBranch();
+        return branchesModified || javadocModified || gitCheckModified;
+    }
+
+    /**
+     * 驗證分支名稱
+     *
+     * @param branchName 要驗證的分支名稱
+     * @return 驗證錯誤信息，如果合法則返回 null
+     */
+    @Nullable
+    private String validateBranchName(String branchName) {
+        if (branchName.isEmpty()) {
+            return null; // 空字符串會在外層處理
+        }
+
+        for (BranchValidationRule rule : BRANCH_VALIDATION_RULES) {
+            if (rule.test(branchName)) {
+                return rule.getErrorMessage();
+            }
+        }
+
+        return null; // 通過所有驗證
     }
 
     /**
      * 應用並保存設定
      * 在用戶點擊 "應用" 或 "確定" 按鈕時調用
-     * 
+     *
      * @throws ConfigurationException 如果設定輸入無效
      */
     @Override
@@ -365,17 +431,27 @@ public class GitSettingsConfigurable implements Configurable {
             throw new ConfigurationException("目標分支不能為空，請至少提供一個分支。");
         }
 
-        // 檢查分支名稱是否有效
+        // 驗證所有分支名稱
         String[] branches = branchesText.split(",");
+        List<String> validBranches = new ArrayList<>();
+
         for (String branch : branches) {
             String trimmed = branch.trim();
             if (trimmed.isEmpty()) {
-                continue;
+                continue; // 忽略空的條目
             }
 
-            if (trimmed.contains(" ") || trimmed.contains("\t")) {
-                throw new ConfigurationException("分支名稱 '" + trimmed + "' 包含空格，這可能不是有效的分支名稱。");
+            validBranches.add(trimmed);
+
+            // 驗證分支名稱
+            String errorMessage = validateBranchName(trimmed);
+            if (errorMessage != null) {
+                throw new ConfigurationException("分支名稱 \"" + trimmed + "\" 無效：" + errorMessage);
             }
+        }
+
+        if (validBranches.isEmpty()) {
+            throw new ConfigurationException("目標分支不能為空，請至少提供一個有效分支。");
         }
 
         if (project == null) {
@@ -385,10 +461,9 @@ public class GitSettingsConfigurable implements Configurable {
 
         GitSettings settings = GitSettings.getInstance(project);
         settings.setTargetBranchesFromString(branchesText);
-        // 保存 Javadoc 設定
         settings.setGenerateFullJavadoc(generateFullJavadocCheckbox.isSelected());
-
-        Messages.showInfoMessage(project, "設置已保存！分支檢查將使用這些目標分支: " + branchesText, "設置保存成功");
+        // 保存 Git 檢查開關設定
+        settings.setCheckGitBranch(checkGitBranchCheckbox.isSelected());
     }
 
     /**
@@ -408,7 +483,61 @@ public class GitSettingsConfigurable implements Configurable {
     public void disposeUIResources() {
         myMainPanel = null;
         targetBranchesField = null;
-        // 釋放 Javadoc UI 資源
         generateFullJavadocCheckbox = null;
+        // 釋放 Git 檢查開關 UI 資源
+        checkGitBranchCheckbox = null;
+    }
+
+    /**
+     * 分支名稱驗證規則類
+     * 用於封裝驗證邏輯和錯誤訊息
+     */
+    private static class BranchValidationRule {
+        private final BranchValidator validator;
+        private final String errorMessage;
+
+        /**
+         * 建立驗證規則
+         *
+         * @param validator 驗證函數
+         * @param errorMessage 錯誤訊息
+         */
+        public BranchValidationRule(BranchValidator validator, String errorMessage) {
+            this.validator = validator;
+            this.errorMessage = errorMessage;
+        }
+
+        /**
+         * 測試分支名稱是否違反此規則
+         *
+         * @param branchName 要測試的分支名稱
+         * @return 若違反則返回 true
+         */
+        public boolean test(String branchName) {
+            return validator.isInvalid(branchName);
+        }
+
+        /**
+         * 獲取錯誤訊息
+         *
+         * @return 錯誤訊息
+         */
+        public String getErrorMessage() {
+            return errorMessage;
+        }
+    }
+
+    /**
+     * 分支驗證器函數式接口
+     */
+    @FunctionalInterface
+    private interface BranchValidator {
+        /**
+         * 檢查分支名稱是否無效
+         *
+         * @param branchName 要檢查的分支名稱
+         * @return 若無效則返回 true
+         */
+        boolean isInvalid(String branchName);
     }
 }

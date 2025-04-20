@@ -31,6 +31,9 @@ public class GitSettings implements PersistentStateComponent<GitSettings> {
     // 新增設定：是否生成完整 Javadoc (預設為 true)
     private boolean generateFullJavadoc = true;
 
+    // 新增設定：是否執行 Git 分支檢查 (預設為 true)
+    private boolean checkGitBranch = true;
+
     public static GitSettings getInstance(@NotNull Project project) {
         return project.getService(GitSettings.class);
     }
@@ -97,5 +100,14 @@ public class GitSettings implements PersistentStateComponent<GitSettings> {
 
     public void setGenerateFullJavadoc(boolean generateFullJavadoc) {
         this.generateFullJavadoc = generateFullJavadoc;
+    }
+
+    // 新增 Git 檢查開關的 getter 和 setter
+    public boolean isCheckGitBranch() {
+        return checkGitBranch;
+    }
+
+    public void setCheckGitBranch(boolean checkGitBranch) {
+        this.checkGitBranch = checkGitBranch;
     }
 }
