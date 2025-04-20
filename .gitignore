@@ -6,6 +6,7 @@
 out/
 .vscode/
 .intellijPlatform/
+qodana.yaml
 
 # Gradle
 .gradle/

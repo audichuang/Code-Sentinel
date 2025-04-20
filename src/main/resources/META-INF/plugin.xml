@@ -54,5 +54,15 @@
         <!-- ======================================== -->
         <checkinHandlerFactory implementation="com.cathaybk.codingassistant.vcs.CathayBkCheckinHandlerFactory"/>
 
+        <!-- ======================================== -->
+        <!-- 4. 新增 Git 設置組件                   -->
+        <!-- ======================================== -->
+        <projectService serviceImplementation="com.cathaybk.codingassistant.settings.GitSettings"/>
+        <applicationConfigurable 
+                             groupId="tools" 
+                             instance="com.cathaybk.codingassistant.settings.GitSettingsConfigurable"
+                             id="com.cathaybk.codingassistant.settings.GitSettingsConfigurable" 
+                             displayName="CathaybkCodingAssitant"/>
+
     </extensions>
 </idea-plugin>
