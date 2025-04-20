@@ -23,10 +23,13 @@ import java.util.List;
 public class GitSettings implements PersistentStateComponent<GitSettings> {
 
     // 預設的目標分支
-    private static final String[] DEFAULT_TARGET_BRANCHES = {"dev"};
+    private static final String[] DEFAULT_TARGET_BRANCHES = { "dev" };
 
     // 用戶配置的目標分支
     private List<String> targetBranches = new ArrayList<>(Arrays.asList(DEFAULT_TARGET_BRANCHES));
+
+    // 新增設定：是否生成完整 Javadoc (預設為 true)
+    private boolean generateFullJavadoc = true;
 
     public static GitSettings getInstance(@NotNull Project project) {
         return project.getService(GitSettings.class);
@@ -85,5 +88,14 @@ public class GitSettings implements PersistentStateComponent<GitSettings> {
         if (targetBranches.isEmpty()) {
             targetBranches.add(DEFAULT_TARGET_BRANCHES[0]);
         }
+    }
+
+    // 新增 getter 和 setter
+    public boolean isGenerateFullJavadoc() {
+        return generateFullJavadoc;
+    }
+
+    public void setGenerateFullJavadoc(boolean generateFullJavadoc) {
+        this.generateFullJavadoc = generateFullJavadoc;
     }
 }

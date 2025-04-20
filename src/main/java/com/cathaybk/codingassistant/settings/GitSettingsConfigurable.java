@@ -21,6 +21,7 @@ public class GitSettingsConfigurable implements Configurable {
     private Project project;
     private JPanel myMainPanel;
     private JBTextField targetBranchesField;
+    private JCheckBox generateFullJavadocCheckbox;
 
     public GitSettingsConfigurable() {
         // 當作為應用程序級配置使用時，嘗試獲取當前活動項目
@@ -74,6 +75,13 @@ public class GitSettingsConfigurable implements Configurable {
         inputPanel.add(targetBranchesField, BorderLayout.CENTER);
         centerPanel.add(inputPanel, BorderLayout.NORTH);
 
+        // 新增 Javadoc 設定面板
+        JPanel javadocPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        generateFullJavadocCheckbox = new JCheckBox("為新註解生成完整 Javadoc 結構（包括 @param, @return 等）");
+        generateFullJavadocCheckbox.setToolTipText("若取消勾選，則只會添加必要的文字（如 API ID），不生成額外標籤。");
+        javadocPanel.add(generateFullJavadocCheckbox);
+        centerPanel.add(javadocPanel, BorderLayout.CENTER); // 將 Javadoc 設定放在中間
+
         // 底部按鈕面板
         JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         JButton resetButton = new JButton("重置為預設值");
@@ -102,6 +110,8 @@ public class GitSettingsConfigurable implements Configurable {
 
         GitSettings settings = GitSettings.getInstance(project);
         targetBranchesField.setText(settings.getTargetBranchesAsString());
+        // 加載 Javadoc 設定
+        generateFullJavadocCheckbox.setSelected(settings.isGenerateFullJavadoc());
     }
 
     private void resetToDefaults() {
@@ -112,6 +122,8 @@ public class GitSettingsConfigurable implements Configurable {
 
         GitSettings settings = GitSettings.getInstance(project);
         settings.resetToDefaults();
+        // 重置 Javadoc 設定為預設值 (true)
+        settings.setGenerateFullJavadoc(true);
     }
 
     @Override
@@ -121,7 +133,10 @@ public class GitSettingsConfigurable implements Configurable {
         }
 
         GitSettings settings = GitSettings.getInstance(project);
-        return !targetBranchesField.getText().equals(settings.getTargetBranchesAsString());
+        boolean branchesModified = !targetBranchesField.getText().equals(settings.getTargetBranchesAsString());
+        // 檢查 Javadoc 設定是否被修改
+        boolean javadocModified = generateFullJavadocCheckbox.isSelected() != settings.isGenerateFullJavadoc();
+        return branchesModified || javadocModified;
     }
 
     @Override
@@ -151,6 +166,8 @@ public class GitSettingsConfigurable implements Configurable {
 
         GitSettings settings = GitSettings.getInstance(project);
         settings.setTargetBranchesFromString(branchesText);
+        // 保存 Javadoc 設定
+        settings.setGenerateFullJavadoc(generateFullJavadocCheckbox.isSelected());
 
         Messages.showInfoMessage(project, "設置已保存！分支檢查將使用這些目標分支: " + branchesText, "設置保存成功");
     }
@@ -164,5 +181,7 @@ public class GitSettingsConfigurable implements Configurable {
     public void disposeUIResources() {
         myMainPanel = null;
         targetBranchesField = null;
+        // 釋放 Javadoc UI 資源
+        generateFullJavadocCheckbox = null;
     }
 }
