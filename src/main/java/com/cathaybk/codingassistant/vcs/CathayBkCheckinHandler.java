@@ -111,9 +111,25 @@ public class CathayBkCheckinHandler extends CheckinHandler {
             LOG.info("Git 分支檢查設定已關閉，跳過 Git 相關操作。");
         }
 
-        // 無論 Git 檢查是否執行（或是否通過），都繼續執行代碼質量檢查
-        LOG.info("========== 開始執行代碼檢查 ==========");
-        return checkCodeQuality();
+        // 讀取程式碼檢查設定
+        boolean shouldCheckCode = settings.isCheckCodeQuality();
+
+        // 根據設定決定是否執行代碼質量檢查
+        if (shouldCheckCode) {
+            LOG.info("========== 開始執行代碼檢查 ==========");
+            ReturnResult codeCheckResult = checkCodeQuality();
+            if (codeCheckResult != ReturnResult.COMMIT) {
+                LOG.info("程式碼檢查未通過或用戶取消，終止提交。");
+                return codeCheckResult;
+            }
+            LOG.info("========== 程式碼檢查結束 ==========");
+            // 如果兩項檢查都通過，才真正允許提交
+            return ReturnResult.COMMIT;
+        } else {
+            LOG.info("程式碼規範檢查設定已關閉，跳過相關檢查。");
+            // 如果 Git 檢查被跳過或通過，且程式碼檢查被跳過，則允許提交
+            return ReturnResult.COMMIT;
+        }
     }
 
     /**

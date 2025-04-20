@@ -34,6 +34,9 @@ public class GitSettings implements PersistentStateComponent<GitSettings> {
     // 新增設定：是否執行 Git 分支檢查 (預設為 true)
     private boolean checkGitBranch = true;
 
+    // 新增設定：是否執行程式碼規範檢查 (預設為 true)
+    private boolean checkCodeQuality = true;
+
     public static GitSettings getInstance(@NotNull Project project) {
         return project.getService(GitSettings.class);
     }
@@ -109,5 +112,14 @@ public class GitSettings implements PersistentStateComponent<GitSettings> {
 
     public void setCheckGitBranch(boolean checkGitBranch) {
         this.checkGitBranch = checkGitBranch;
+    }
+
+    // 新增程式碼檢查開關的 getter 和 setter
+    public boolean isCheckCodeQuality() {
+        return checkCodeQuality;
+    }
+
+    public void setCheckCodeQuality(boolean checkCodeQuality) {
+        this.checkCodeQuality = checkCodeQuality;
     }
 }

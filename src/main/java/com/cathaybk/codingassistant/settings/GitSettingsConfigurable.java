@@ -44,6 +44,9 @@ public class GitSettingsConfigurable implements Configurable {
     /** Git 檢查開關複選框 */
     private JCheckBox checkGitBranchCheckbox;
 
+    /** 程式碼規範檢查開關複選框 */
+    private JCheckBox checkCodeQualityCheckbox;
+
     /** Git 分支名稱的非法字符正則表達式 */
     private static final Pattern INVALID_BRANCH_CHARS = Pattern.compile(".*[~^:?*\\[\\\\].*");
 
@@ -51,40 +54,31 @@ public class GitSettingsConfigurable implements Configurable {
     private static final BranchValidationRule[] BRANCH_VALIDATION_RULES = {
             new BranchValidationRule(
                     name -> name.contains(" ") || name.contains("\t"),
-                    "包含空格"
-            ),
+                    "包含空格"),
             new BranchValidationRule(
                     name -> name.startsWith(".") || name.startsWith("/"),
-                    "不能以 '.' 或 '/' 開頭"
-            ),
+                    "不能以 '.' 或 '/' 開頭"),
             new BranchValidationRule(
                     name -> name.endsWith(".") || name.endsWith("/"),
-                    "不能以 '.' 或 '/' 結尾"
-            ),
+                    "不能以 '.' 或 '/' 結尾"),
             new BranchValidationRule(
                     name -> name.contains(".."),
-                    "不能包含 '..'"
-            ),
+                    "不能包含 '..'"),
             new BranchValidationRule(
                     name -> name.contains("//"),
-                    "不能包含 '//'"
-            ),
+                    "不能包含 '//'"),
             new BranchValidationRule(
                     name -> name.contains("@{"),
-                    "不能包含 '@{'"
-            ),
+                    "不能包含 '@{'"),
             new BranchValidationRule(
                     name -> name.endsWith(".lock"),
-                    "不能以 '.lock' 結尾"
-            ),
+                    "不能以 '.lock' 結尾"),
             new BranchValidationRule(
                     name -> name.equals("@"),
-                    "分支名稱不能是 '@'"
-            ),
+                    "分支名稱不能是 '@'"),
             new BranchValidationRule(
                     name -> INVALID_BRANCH_CHARS.matcher(name).matches(),
-                    "包含無效字符 (例如 ~^:?*[\\)"
-            )
+                    "包含無效字符 (例如 ~^:?*[\\)")
     };
 
     /**
@@ -290,6 +284,27 @@ public class GitSettingsConfigurable implements Configurable {
         filler.setOpaque(false);
         myMainPanel.add(filler, gbc);
 
+        // --- 程式碼規範檢查設定區塊 ---
+        JPanel codeQualityPanel = createPanelWithBorder("程式碼規範檢查設定");
+        codeQualityPanel.setLayout(new BorderLayout());
+
+        checkCodeQualityCheckbox = new JCheckBox("啟用程式碼規範檢查 (提交前)");
+        checkCodeQualityCheckbox.setOpaque(false);
+        checkCodeQualityCheckbox.setToolTipText("若關閉，提交前將不執行自訂的程式碼規範檢查。警告：可能導致不合規的代碼被提交。");
+        codeQualityPanel.add(checkCodeQualityCheckbox, BorderLayout.NORTH);
+
+        // Add codeQualityPanel to the main panel
+        myMainPanel.add(codeQualityPanel, gbc);
+        gbc.gridy++;
+
+        // 填充剩餘空間
+        gbc.weighty = 1.0;
+        gbc.fill = GridBagConstraints.BOTH;
+        JPanel filler2 = new JPanel();
+        // 使填充面板透明
+        filler2.setOpaque(false);
+        myMainPanel.add(filler2, gbc);
+
         // 加載設定
         loadSettings();
 
@@ -362,16 +377,18 @@ public class GitSettingsConfigurable implements Configurable {
     private void loadSettings() {
         if (project == null) {
             targetBranchesField.setText("dev");
-            generateFullJavadocCheckbox.setSelected(true); // 預設勾選
-            checkGitBranchCheckbox.setSelected(true); // 預設勾選
+            generateFullJavadocCheckbox.setSelected(true);
+            checkGitBranchCheckbox.setSelected(true);
+            checkCodeQualityCheckbox.setSelected(true); // 預設勾選
             return;
         }
 
         GitSettings settings = GitSettings.getInstance(project);
         targetBranchesField.setText(settings.getTargetBranchesAsString());
         generateFullJavadocCheckbox.setSelected(settings.isGenerateFullJavadoc());
-        // 加載 Git 檢查開關設定
         checkGitBranchCheckbox.setSelected(settings.isCheckGitBranch());
+        // 加載程式碼檢查開關設定
+        checkCodeQualityCheckbox.setSelected(settings.isCheckCodeQuality());
     }
 
     /**
@@ -382,19 +399,20 @@ public class GitSettingsConfigurable implements Configurable {
     @Override
     public boolean isModified() {
         if (project == null) {
-            // 如果項目為空，與默認值比較
             boolean branchesModified = !targetBranchesField.getText().equals("dev");
             boolean javadocModified = generateFullJavadocCheckbox.isSelected() != true;
             boolean gitCheckModified = checkGitBranchCheckbox.isSelected() != true;
-            return branchesModified || javadocModified || gitCheckModified;
+            boolean codeQualityModified = checkCodeQualityCheckbox.isSelected() != true;
+            return branchesModified || javadocModified || gitCheckModified || codeQualityModified;
         }
 
         GitSettings settings = GitSettings.getInstance(project);
         boolean branchesModified = !targetBranchesField.getText().equals(settings.getTargetBranchesAsString());
         boolean javadocModified = generateFullJavadocCheckbox.isSelected() != settings.isGenerateFullJavadoc();
-        // 檢查 Git 檢查開關是否被修改
         boolean gitCheckModified = checkGitBranchCheckbox.isSelected() != settings.isCheckGitBranch();
-        return branchesModified || javadocModified || gitCheckModified;
+        // 檢查程式碼檢查開關是否被修改
+        boolean codeQualityModified = checkCodeQualityCheckbox.isSelected() != settings.isCheckCodeQuality();
+        return branchesModified || javadocModified || gitCheckModified || codeQualityModified;
     }
 
     /**
@@ -460,10 +478,11 @@ public class GitSettingsConfigurable implements Configurable {
         }
 
         GitSettings settings = GitSettings.getInstance(project);
-        settings.setTargetBranchesFromString(branchesText);
+        settings.setTargetBranchesFromString(validBranches.isEmpty() ? "" : String.join(",", validBranches));
         settings.setGenerateFullJavadoc(generateFullJavadocCheckbox.isSelected());
-        // 保存 Git 檢查開關設定
         settings.setCheckGitBranch(checkGitBranchCheckbox.isSelected());
+        // 保存程式碼檢查開關設定
+        settings.setCheckCodeQuality(checkCodeQualityCheckbox.isSelected());
     }
 
     /**
@@ -484,8 +503,9 @@ public class GitSettingsConfigurable implements Configurable {
         myMainPanel = null;
         targetBranchesField = null;
         generateFullJavadocCheckbox = null;
-        // 釋放 Git 檢查開關 UI 資源
         checkGitBranchCheckbox = null;
+        // 釋放程式碼檢查開關 UI 資源
+        checkCodeQualityCheckbox = null;
     }
 
     /**
@@ -499,7 +519,7 @@ public class GitSettingsConfigurable implements Configurable {
         /**
          * 建立驗證規則
          *
-         * @param validator 驗證函數
+         * @param validator    驗證函數
          * @param errorMessage 錯誤訊息
          */
         public BranchValidationRule(BranchValidator validator, String errorMessage) {
