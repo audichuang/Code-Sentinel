@@ -110,7 +110,7 @@ public class GitSettingsConfigurable implements Configurable {
     @Nls(capitalization = Nls.Capitalization.Title)
     @Override
     public String getDisplayName() {
-        return "國泰 Git 設置";
+        return "Code Sentinel 設定";
     }
 
     /**

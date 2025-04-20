@@ -1,27 +1,54 @@
 <idea-plugin>
     <id>com.cathaybk.codingassistant</id>
-    <name>CathayBk Coding Assistant</name>
-    <vendor email="support@cathaybk.com" url="https://www.cathaybk.com">CathayBk</vendor>
+    <name>Code Sentinel</name>
+    <vendor email="audiapplication880208@gmail.com" url="https://github.com/audichuang">AudiChuang</vendor>
 
     <description><![CDATA[
-    國泰銀行程式碼助手，用於協助開發人員遵循公司的編碼標準和規範。
+    <html><body>
+    <h2>Code Sentinel: 您的智能編碼與提交守衛</h2>
+    <p>Code Sentinel 是一款專為 IntelliJ IDEA 設計的開發者助手插件，旨在通過<b>即時程式碼分析</b>和<b>提交前檢查</b>機制，全方位保障您的程式碼品質、統一團隊規範，並顯著提升開發與提交流程的效率。</p>
+
+    <hr/>
+
+    <h3>核心功能</h3>
     
-    主要功能：
-    - 檢查Controller層API方法是否添加了msgID註解
-    - 自動關聯Controller的API方法與對應的Service實現
-    - 提供程式碼規範檢查並顯示警告
-    - 檢查注入的欄位是否缺少Javadoc註解並提供快速修復
+    <b>🚀 即時檢查與快速修復 (編碼時)</b>
+    <ul>
+        <li><b>規範哨兵:</b> 在您輸入時，即時捕捉不符合預設規範的程式碼（例如：API MsgID 格式、缺少 Javadoc 等）。</li>
+        <li><b>智能修復:</b> 對檢測到的問題提供上下文感知的快速修復建議 (Quick Fix via Alt+Enter / Option+Enter)，一鍵生成或修正程式碼。</li>
+    </ul>
+
+    <b>🛡️ 提交前守衛 (Git Commit 時 - 可選)</b>
+    <ul>
+        <li><b>Git 分支檢查 (可選):</b> 自動執行 `git fetch` 並比對目標分支，防止基於過時分支提交，降低合併衝突風險。</li>
+        <li><b>程式碼品質門禁 (可選):</b> 全面掃描待提交的程式碼變更，確保符合團隊自訂的程式碼規範。</li>
+        <li><b>問題看板:</b> 在專用工具視窗 ("Code Sentinel 檢查") 清晰列出所有檢查發現的問題點，一目了然。</li>
+        <li><b>批量修復 ("Fix All"):</b> 提供強大的 "一鍵修復" 功能，嘗試自動修正所有可修復的問題，節省您的寶貴時間。</li>
+    </ul>
     
-    v1.3.0 更新內容：
-    - 提交前檢查流程優化，提高執行效率
-    - 問題面板（Problems Panel）界面優化，移除搜尋框，改善使用體驗
-    - UI 元素顯示調整，適配最新版 IntelliJ IDEA
-    - 修復 HTML 顯示相關的多處錯誤
-    - 修復在 IntelliJ IDEA 2024.3 中無法正常運行的問題
+    <b>💡 智能輔助</b>
+    <ul>
+        <li><b>Javadoc 生成器 (可選):</b> 自動為方法或類別生成 Javadoc 註解。支持生成包含完整標籤 (<code>@param</code>, <code>@return</code>) 的結構，或僅包含核心描述的最小結構，可在設定中切換。</li>
+    </ul>
+
+    <hr/>
+
+    <h3>高度可配置</h3>
+    <p>您可以根據團隊或個人需求，在 <code>Settings &gt; Tools &gt; Code Sentinel 設定</code> 中靈活配置：</p>
+    <ul>
+        <li>啟用/禁用 Git 分支檢查</li>
+        <li>啟用/禁用提交前的程式碼規範檢查</li>
+        <li>選擇 Javadoc 的生成風格 (完整/最小)</li>
+        <li>設定需要檢查的目標分支</li>
+    </ul>
+
+    <p>讓 Code Sentinel 成為您編碼過程中的得力助手和品質守護者！</p>
+
+    </body></html>
     ]]></description>
 
-    <!-- 更新 until-build 到一個較新的版本或保持通用，例如 251.* 表示直到 2025.1.x -->
-    <idea-version since-build="231" until-build="251.*"/>
+    <!-- 更新 until-build 到一個較新的版本或保持通用 -->
+    <idea-version since-build="231"/>
 
     <!-- 依賴關係 -->
     <depends>com.intellij.modules.platform</depends>
@@ -31,7 +58,7 @@
         <!-- 1. 原有的 API MsgID 檢查器 -->
         <localInspection language="JAVA"
                          displayName="API MsgID檢查"
-                         groupName="CathayBk規範檢查"
+                         groupName="Code Sentinel"
                          enabledByDefault="true"
                          level="WARNING"
                          shortName="ApiMsgIdInspection"
@@ -43,7 +70,7 @@
         <!-- ======================================== -->
         <localInspection language="JAVA"
                          displayName="注入的欄位缺少 Javadoc"
-                         groupName="CathayBk規範檢查"
+                         groupName="Code Sentinel"
                          enabledByDefault="true"
                          level="WARNING"
                          shortName="InjectedFieldJavadocInspection"
@@ -62,7 +89,7 @@
                              groupId="tools" 
                              instance="com.cathaybk.codingassistant.settings.GitSettingsConfigurable"
                              id="com.cathaybk.codingassistant.settings.GitSettingsConfigurable" 
-                             displayName="CathaybkCodingAssitant"/>
+                             displayName="Code Sentinel"/>
 
     </extensions>
 </idea-plugin>

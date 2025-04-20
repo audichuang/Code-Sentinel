@@ -90,7 +90,7 @@ tasks {
 intellijPlatform {
     pluginConfiguration {
         id.set("com.cathaybk.codingassistant")
-        name.set("CathayBk Coding Assistant")
+        name.set("Code Sentinel")
         version.set(project.version.toString())
         
         vendor {
@@ -100,23 +100,52 @@ intellijPlatform {
         }
         
         description.set("""
-            國泰銀行程式碼助手，用於協助開發人員遵循公司的編碼標準和規範。
-            主要功能：
-            - 檢查Controller層API方法是否添加了msgID註解
-            - 自動關聯Controller的API方法與對應的Service實現
-            - 提供程式碼規範檢查並顯示警告
+            <html><body>
+            <h2>Code Sentinel: 您的智能編碼與提交守衛</h2>
+            <p>Code Sentinel 是一款專為 IntelliJ IDEA 設計的開發者助手插件，旨在通過<b>即時程式碼分析</b>和<b>提交前檢查</b>機制，全方位保障您的程式碼品質、統一團隊規範，並顯著提升開發與提交流程的效率。</p>
+            <hr/>
+            <h3>核心功能</h3>
+            <b>🚀 即時檢查與快速修復:</b> <ul><li>規範哨兵: 即時捕捉不合規代碼。</li><li>智能修復: 提供 Quick Fix 建議。</li></ul>
+            <b>🛡️ 提交前守衛 (可選):</b> <ul><li>Git 分支檢查: 防過時提交。</li><li>程式碼品質門禁: 掃描變更。</li><li>問題看板: 清晰列出問題。</li><li>批量修復 ("Fix All"): 一鍵修正。</li></ul>
+            <b>💡 智能輔助:</b> <ul><li>Javadoc 生成器: 自動生成完整或最小 Javadoc。</li></ul>
+            <hr/>
+            <h3>高度可配置:</h3> <p>可在設定中開關 Git/程式碼檢查、選擇 Javadoc 風格、定義目標分支。</p>
+            <p>讓 Code Sentinel 成為您編碼過程中的得力助手和品質守護者！</p>
+            </body></html>
         """)
 
         ideaVersion {
             sinceBuild.set("231")
-            untilBuild.set("251.*")
+            // untilBuild.set("251.*")
         }
         
         changeNotes.set("""
+            <b>v1.3.0</b>
             <ul>
-                <li>1.2.0: 增加對25.1版本的支持，新增bean加入註解功能</li>
-                <li>1.1.0: 優化效能，修正已知問題，改善使用者體驗</li>
-                <li>1.0.0: 初始版本，提供API註解檢查和Service關聯功能</li>
+                <li>插件更名為 "Code Sentinel"。</li>
+                <li>新增設定選項：可開關 Git 分支落後檢查。</li>
+                <li>新增設定選項：可開關程式碼規範檢查。</li>
+                <li>新增設定選項：可配置 Javadoc 生成方式 (完整/最小)。</li>
+                <li>設定頁面 UI 優化，分區顯示並加入範例說明。</li>
+                <li>增強設定中目標分支名稱的驗證規則。</li>
+                <li>移除設定成功時的冗餘提示彈窗。</li>
+                <li>修復 Javadoc 生成中的換行符問題。</li>
+                <li>(舊) 問題面板界面優化，移除搜尋框，修復 HTML 顯示問題，提高檢查執行效率。</li> 
+            </ul>
+            <br/>
+            <b>v1.2.0</b>
+            <ul>
+                <li>增加對25.1版本的支持，新增bean加入註解功能</li>
+            </ul>
+             <br/>
+            <b>v1.1.0</b>
+            <ul>
+                 <li>優化效能，修正已知問題，改善使用者體驗</li>
+            </ul>
+             <br/>
+            <b>v1.0.0</b>
+            <ul>
+                 <li>初始版本，提供API註解檢查和Service關聯功能</li>
             </ul>
         """)
     }

@@ -48,7 +48,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class CathayBkCheckinHandler extends CheckinHandler {
     private static final Logger LOG = Logger.getInstance(CathayBkCheckinHandler.class);
-    private static final String TOOL_WINDOW_ID = "國泰規範檢查";
+    private static final String TOOL_WINDOW_ID = "Code Sentinel 檢查";
+    private static final String SETTING_TITLE_NAME = "Code Sentinel";
 
     private final CheckinProjectPanel panel;
     private final Project project;
@@ -209,7 +210,7 @@ public class CathayBkCheckinHandler extends CheckinHandler {
             toolWindow = toolWindowManager.registerToolWindow(TOOL_WINDOW_ID, true, ToolWindowAnchor.BOTTOM, project,
                     true);
             toolWindow.setIcon(AllIcons.General.InspectionsEye);
-            toolWindow.setStripeTitle("國泰規範");
+            toolWindow.setStripeTitle(SETTING_TITLE_NAME);
         }
 
         currentProblemsPanel = new CathayBkProblemsPanel(project, problems);

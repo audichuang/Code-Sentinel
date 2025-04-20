@@ -49,7 +49,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class ProblemCollector {
     private static final Logger LOG = Logger.getInstance(ProblemCollector.class);
-    private static final String TOOL_WINDOW_ID = "國泰規範檢查";
+    private static final String TOOL_WINDOW_ID = "Code Sentinel 檢查";
 
     private final Project project;
     private List<ProblemInfo> collectedProblems;
@@ -109,7 +109,7 @@ public class ProblemCollector {
                 return;
             }
             indicator.setIndeterminate(false);
-            indicator.setText("執行國泰規範檢查...");
+            indicator.setText("執行 Code Sentinel 檢查...");
 
             PsiManager psiManager = PsiManager.getInstance(project);
             int processedCount = 0;
@@ -203,7 +203,7 @@ public class ProblemCollector {
             LOG.info("檢查完成，發現 " + allProblems.size() + " 個問題");
             collectedProblems = allProblems;
 
-        }, "國泰規範檢查", true, project);
+        }, "Code Sentinel 檢查", true, project);
 
         // 如果用戶在檢查過程中取消，則直接返回
         if (shouldCancel.get()) {
@@ -215,9 +215,9 @@ public class ProblemCollector {
         if (collectedProblems != null && !collectedProblems.isEmpty()) {
             int userChoice = Messages.showYesNoCancelDialog(
                     project,
-                    "發現 " + collectedProblems.size() + " 個國泰規範問題。是否繼續提交？\n" +
+                    "發現 " + collectedProblems.size() + " 個 Code Sentinel 問題。是否繼續提交？\n" +
                             "選擇「顯示問題」可查看並修復問題。",
-                    "國泰規範檢查發現問題",
+                    "Code Sentinel 檢查發現問題",
                     "繼續提交",
                     "顯示問題",
                     "取消提交",
@@ -250,8 +250,8 @@ public class ProblemCollector {
         if (toolWindow == null) {
             toolWindow = toolWindowManager.registerToolWindow(
                     TOOL_WINDOW_ID, true, ToolWindowAnchor.BOTTOM, project, true);
-            toolWindow.setIcon(AllIcons.General.InspectionsEye);
-            toolWindow.setStripeTitle("國泰規範");
+            toolWindow.setIcon(AllIcons.Toolwindows.Problems);
+            toolWindow.setStripeTitle("Code Sentinel");
         }
 
         currentProblemsPanel = new CathayBkProblemsPanel(project, problems);

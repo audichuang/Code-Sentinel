@@ -40,7 +40,8 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * 用於顯示國泰規範檢查問題的 UI 面板。
+ * 用於顯示 Code Sentinel 檢查問題的 UI 面板。
+ * 提供問題列表的樹狀視圖，並允許用戶查看詳細信息和導航到程式碼。
  */
 public class CathayBkProblemsPanel extends JPanel {
 
@@ -244,7 +245,7 @@ public class CathayBkProblemsPanel extends JPanel {
         // --- Toolbar ---
         JPanel toolbarPanel = new JPanel(new BorderLayout());
         toolbarPanel.setBorder(JBUI.Borders.empty(6, 10));
-        JLabel titleLabel = new JLabel("國泰規範檢查結果");
+        JLabel titleLabel = new JLabel("Code Sentinel 檢查結果");
         titleLabel.setIcon(AllIcons.General.InspectionsEye);
         titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, titleLabel.getFont().getSize() + 2));
         toolbarPanel.add(titleLabel, BorderLayout.WEST);
@@ -430,7 +431,7 @@ public class CathayBkProblemsPanel extends JPanel {
         tree.setCellRenderer(new DefaultTreeCellRenderer() {
             @Override
             public Component getTreeCellRendererComponent(JTree tree, Object value, boolean sel, boolean expanded,
-                                                          boolean leaf, int row, boolean hasFocus) {
+                    boolean leaf, int row, boolean hasFocus) {
                 // 調用父類實現獲取基礎組件
                 Component c = super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
 
@@ -486,7 +487,7 @@ public class CathayBkProblemsPanel extends JPanel {
      * 更新詳細信息面板以顯示節點摘要（文件或根節點）
      */
     private void updateDetailsPaneForNode(JEditorPane detailsPane, @Nullable DefaultMutableTreeNode node,
-                                          int totalProblemsInCurrentView) {
+            int totalProblemsInCurrentView) {
         if (detailsPane == null)
             return;
 
@@ -496,7 +497,7 @@ public class CathayBkProblemsPanel extends JPanel {
         summary.append("<html><body style='margin: 12px;'>");
 
         if (node == null || node.isRoot()) {
-            summary.append("<h2>國泰規範檢查結果</h2>");
+            summary.append("<h2>Code Sentinel 檢查結果</h2>");
             summary.append("<p>總共發現 <b>").append(originalProblems.size()).append("</b> 個問題");
             if (originalProblems.size() != totalProblemsInCurrentView) {
                 summary.append("（當前視圖顯示 <b>").append(totalProblemsInCurrentView).append("</b> 個）");
@@ -568,12 +569,12 @@ public class CathayBkProblemsPanel extends JPanel {
         ProblemHighlightType highlightType = problem.getHighlightType();
         String severityColor = highlightType == ProblemHighlightType.ERROR ? "#ff5261"
                 : (highlightType == ProblemHighlightType.WARNING || highlightType == ProblemHighlightType.WEAK_WARNING)
-                ? "#eea800"
-                : "#589df6"; // severityColor 已是 hex
+                        ? "#eea800"
+                        : "#589df6"; // severityColor 已是 hex
         String severityText = highlightType == ProblemHighlightType.ERROR ? "錯誤"
                 : (highlightType == ProblemHighlightType.WARNING || highlightType == ProblemHighlightType.WEAK_WARNING)
-                ? "警告"
-                : "資訊";
+                        ? "警告"
+                        : "資訊";
 
         // 再次嘗試移除 border-radius
         html.append("<div style='margin-bottom:15px; padding:8px; border:1px solid ").append(ensureHexPrefix(boxBorder))
