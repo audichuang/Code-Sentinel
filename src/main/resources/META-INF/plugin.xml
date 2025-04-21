@@ -77,6 +77,14 @@
                          implementationClass="com.cathaybk.codingassistant.inspection.InjectedFieldJavadocInspection"/>
 
         <!-- ======================================== -->
+        <!-- 5. 新增創建 DTO 模板的 Intention        -->
+        <!-- ======================================== -->
+        <intentionAction>
+            <className>com.cathaybk.codingassistant.intention.CreateDtoIntentionAction</className>
+            <category>Code Sentinel/模板生成</category> <!-- 分類會顯示在 Intention 設定中 -->
+        </intentionAction>
+
+        <!-- ======================================== -->
         <!-- 3. 新增 Commit 前檢查處理器           -->
         <!-- ======================================== -->
         <checkinHandlerFactory implementation="com.cathaybk.codingassistant.vcs.CathayBkCheckinHandlerFactory"/>
