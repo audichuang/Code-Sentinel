@@ -24,11 +24,12 @@ import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
 import com.cathaybk.codingassistant.dialog.ChooseDtoPackageDialog;
 import com.cathaybk.codingassistant.utils.ApiMsgIdUtil;
+import com.intellij.codeInsight.intention.PriorityAction;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-public class CreateDtoIntentionAction extends BaseIntentionAction {
+public class CreateDtoIntentionAction extends BaseIntentionAction implements PriorityAction {
 
     private static final Logger LOG = Logger.getInstance(CreateDtoIntentionAction.class);
 
@@ -397,5 +398,10 @@ public class CreateDtoIntentionAction extends BaseIntentionAction {
     public boolean startInWriteAction() {
         // invoke 方法內部處理 WriteCommandAction
         return false;
+    }
+
+    @Override
+    public @NotNull Priority getPriority() {
+        return Priority.HIGH; // 設置為高優先級
     }
 }
