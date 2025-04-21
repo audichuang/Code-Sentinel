@@ -1,5 +1,6 @@
 package com.cathaybk.codingassistant.intention;
 
+import com.cathaybk.codingassistant.settings.GitSettings;
 import com.intellij.codeInsight.intention.impl.BaseIntentionAction;
 import com.intellij.ide.highlighter.JavaFileType;
 import com.intellij.ide.util.PackageUtil;
@@ -112,12 +113,17 @@ public class CreateDtoIntentionAction extends BaseIntentionAction {
         final String apiMsgId = com.cathaybk.codingassistant.utils.ApiMsgIdUtil
                 .extractApiMsgId(containingMethod.getDocComment());
 
+        // 從設定獲取 DTO 後綴
+        GitSettings settings = GitSettings.getInstance(project);
+        String parameterSuffix = settings.getParameterDtoSuffix();
+        String returnTypeSuffix = settings.getReturnTypeDtoSuffix();
+
         // 判斷 DTO 的上下文 (參數或返回)
         String dtoContextSuffix = "";
         if (isInReturnType(refElement, containingMethod)) {
-            dtoContextSuffix = " 下行";
+            dtoContextSuffix = returnTypeSuffix != null ? returnTypeSuffix : ""; // 使用設定值
         } else if (isInParameter(refElement, containingMethod)) {
-            dtoContextSuffix = " 上行";
+            dtoContextSuffix = parameterSuffix != null ? parameterSuffix : ""; // 使用設定值
         }
 
         // 3. 確定包名和目錄
@@ -254,7 +260,7 @@ public class CreateDtoIntentionAction extends BaseIntentionAction {
      * 檢查引用是否在方法簽名中 (參數或返回類型)。
      */
     private boolean isInMethodSignature(@NotNull PsiJavaCodeReferenceElement refElement,
-            @NotNull PsiMethod containingMethod) {
+                                        @NotNull PsiMethod containingMethod) {
         if (PsiTreeUtil.isAncestor(containingMethod.getReturnTypeElement(), refElement, false)) {
             return true;
         }
@@ -298,7 +304,7 @@ public class CreateDtoIntentionAction extends BaseIntentionAction {
      * 生成 DTO 類別的模板內容。
      */
     private String generateDtoContent(String packageName, String className, @Nullable String apiMsgId,
-            String dtoContextSuffix) {
+                                      String dtoContextSuffix) {
         StringBuilder sb = new StringBuilder();
         if (packageName != null && !packageName.isEmpty()) {
             sb.append("package ").append(packageName).append(";\n\n");
@@ -313,7 +319,7 @@ public class CreateDtoIntentionAction extends BaseIntentionAction {
         if (hasJavadocContent) {
             sb.append("/**\n");
             if (apiMsgId != null && !apiMsgId.isEmpty()) {
-                sb.append(" * ").append(apiMsgId).append(dtoContextSuffix).append("\n");
+                sb.append(" * ").append(apiMsgId).append(" ").append(dtoContextSuffix).append("\n");
             }
             if (!author.isEmpty()) {
                 // 如果有電文代號，加一個空行分隔
@@ -353,7 +359,7 @@ public class CreateDtoIntentionAction extends BaseIntentionAction {
      * 檢查引用是否在方法的返回類型中。
      */
     private boolean isInReturnType(@NotNull PsiJavaCodeReferenceElement refElement,
-            @NotNull PsiMethod containingMethod) {
+                                   @NotNull PsiMethod containingMethod) {
         PsiTypeElement returnTypeElement = containingMethod.getReturnTypeElement();
         return returnTypeElement != null && PsiTreeUtil.isAncestor(returnTypeElement, refElement, false);
     }
@@ -362,7 +368,7 @@ public class CreateDtoIntentionAction extends BaseIntentionAction {
      * 檢查引用是否在方法的參數列表中。
      */
     private boolean isInParameter(@NotNull PsiJavaCodeReferenceElement refElement,
-            @NotNull PsiMethod containingMethod) {
+                                  @NotNull PsiMethod containingMethod) {
         for (PsiParameter parameter : containingMethod.getParameterList().getParameters()) {
             PsiTypeElement typeElement = parameter.getTypeElement();
             if (typeElement != null && PsiTreeUtil.isAncestor(typeElement, refElement, false)) {

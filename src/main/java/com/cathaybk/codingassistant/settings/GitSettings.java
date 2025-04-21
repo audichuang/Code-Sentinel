@@ -11,7 +11,9 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 用於保存Git相關設置的持久化組件
@@ -20,7 +22,9 @@ import java.util.List;
         @Storage("cathaybkGitSettings.xml"),
         @Storage(StoragePathMacros.WORKSPACE_FILE)
 })
-public class GitSettings implements PersistentStateComponent<GitSettings> {
+public class GitSettings implements PersistentStateComponent<GitSettings.State> {
+
+    private State myState = new State();
 
     // 預設的目標分支
     private static final String[] DEFAULT_TARGET_BRANCHES = { "dev" };
@@ -41,58 +45,58 @@ public class GitSettings implements PersistentStateComponent<GitSettings> {
         return project.getService(GitSettings.class);
     }
 
-    @Nullable
+    @NotNull
     @Override
-    public GitSettings getState() {
-        return this;
+    public State getState() {
+        return myState;
     }
 
     @Override
-    public void loadState(@NotNull GitSettings state) {
-        XmlSerializerUtil.copyBean(state, this);
+    public void loadState(@NotNull State state) {
+        myState = state;
     }
 
     public List<String> getTargetBranches() {
-        return targetBranches;
+        return new ArrayList<>(myState.targetBranches);
     }
 
-    public void setTargetBranches(List<String> targetBranches) {
-        this.targetBranches = targetBranches;
+    public void setTargetBranches(List<String> branches) {
+        myState.targetBranches = new HashSet<>(branches);
     }
 
     /**
      * 將目標分支重置為預設值
      */
     public void resetToDefaults() {
-        targetBranches.clear();
-        targetBranches.addAll(Arrays.asList(DEFAULT_TARGET_BRANCHES));
+        myState.targetBranches.clear();
+        myState.targetBranches.addAll(Arrays.asList(DEFAULT_TARGET_BRANCHES));
     }
 
     /**
      * 獲取目標分支的字符串表示（逗號分隔）
      */
     public String getTargetBranchesAsString() {
-        return String.join(",", targetBranches);
+        return String.join(",", myState.targetBranches);
     }
 
     /**
      * 從字符串設置目標分支（逗號分隔）
      */
     public void setTargetBranchesFromString(String branchesStr) {
-        targetBranches.clear();
+        myState.targetBranches.clear();
         if (branchesStr != null && !branchesStr.isEmpty()) {
             String[] branches = branchesStr.split(",");
             for (String branch : branches) {
                 String trimmed = branch.trim();
                 if (!trimmed.isEmpty()) {
-                    targetBranches.add(trimmed);
+                    myState.targetBranches.add(trimmed);
                 }
             }
         }
 
         // 確保至少有一個分支
-        if (targetBranches.isEmpty()) {
-            targetBranches.add(DEFAULT_TARGET_BRANCHES[0]);
+        if (myState.targetBranches.isEmpty()) {
+            myState.targetBranches.add(DEFAULT_TARGET_BRANCHES[0]);
         }
     }
 
@@ -107,11 +111,11 @@ public class GitSettings implements PersistentStateComponent<GitSettings> {
 
     // 新增 Git 檢查開關的 getter 和 setter
     public boolean isCheckGitBranch() {
-        return checkGitBranch;
+        return myState.checkGitBranch;
     }
 
-    public void setCheckGitBranch(boolean checkGitBranch) {
-        this.checkGitBranch = checkGitBranch;
+    public void setCheckGitBranch(boolean check) {
+        myState.checkGitBranch = check;
     }
 
     // 新增程式碼檢查開關的 getter 和 setter
@@ -121,5 +125,50 @@ public class GitSettings implements PersistentStateComponent<GitSettings> {
 
     public void setCheckCodeQuality(boolean checkCodeQuality) {
         this.checkCodeQuality = checkCodeQuality;
+    }
+
+    public boolean isCheckCodeStyle() {
+        return myState.checkCodeStyle;
+    }
+
+    public void setCheckCodeStyle(boolean check) {
+        myState.checkCodeStyle = check;
+    }
+
+    public JavadocStyle getJavadocStyle() {
+        return myState.javadocStyle;
+    }
+
+    public void setJavadocStyle(JavadocStyle style) {
+        myState.javadocStyle = style;
+    }
+
+    public String getParameterDtoSuffix() {
+        return myState.parameterDtoSuffix;
+    }
+
+    public void setParameterDtoSuffix(String suffix) {
+        myState.parameterDtoSuffix = suffix;
+    }
+
+    public String getReturnTypeDtoSuffix() {
+        return myState.returnTypeDtoSuffix;
+    }
+
+    public void setReturnTypeDtoSuffix(String suffix) {
+        myState.returnTypeDtoSuffix = suffix;
+    }
+
+    public enum JavadocStyle {
+        FULL, MINIMAL
+    }
+
+    public static class State {
+        public Set<String> targetBranches = new HashSet<>(Arrays.asList("dev", "master"));
+        public boolean checkGitBranch = true;
+        public boolean checkCodeStyle = true;
+        public JavadocStyle javadocStyle = JavadocStyle.FULL;
+        public String parameterDtoSuffix = "上行";
+        public String returnTypeDtoSuffix = "下行";
     }
 }

@@ -5,6 +5,7 @@ import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.ui.IdeBorderFactory;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBTextField;
 import com.intellij.util.ui.JBUI;
@@ -16,6 +17,7 @@ import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
@@ -46,6 +48,18 @@ public class GitSettingsConfigurable implements Configurable {
 
     /** 程式碼規範檢查開關複選框 */
     private JCheckBox checkCodeQualityCheckbox;
+
+    /** 全 Javadoc 選項複選框 */
+    private JRadioButton fullJavadocRadioButton;
+
+    /** 簡化 Javadoc 選項複選框 */
+    private JRadioButton minimalJavadocRadioButton;
+
+    /** 參數 DTO 後綴輸入字段 */
+    private JTextField parameterDtoSuffixField;
+
+    /** 返回 DTO 後綴輸入字段 */
+    private JTextField returnTypeDtoSuffixField;
 
     /** Git 分支名稱的非法字符正則表達式 */
     private static final Pattern INVALID_BRANCH_CHARS = Pattern.compile(".*[~^:?*\\[\\\\].*");
@@ -274,15 +288,7 @@ public class GitSettingsConfigurable implements Configurable {
 
         // 添加 Javadoc 面板到主面板
         myMainPanel.add(javadocPanel, gbc);
-
-        // 填充剩餘空間
         gbc.gridy++;
-        gbc.weighty = 1.0;
-        gbc.fill = GridBagConstraints.BOTH;
-        JPanel filler = new JPanel();
-        // 使填充面板透明
-        filler.setOpaque(false);
-        myMainPanel.add(filler, gbc);
 
         // --- 程式碼規範檢查設定區塊 ---
         JPanel codeQualityPanel = createPanelWithBorder("程式碼規範檢查設定");
@@ -297,13 +303,44 @@ public class GitSettingsConfigurable implements Configurable {
         myMainPanel.add(codeQualityPanel, gbc);
         gbc.gridy++;
 
-        // 填充剩餘空間
-        gbc.weighty = 1.0;
+        // --- DTO 後綴設定區塊 ---
+        JPanel dtoSuffixPanel = new JPanel(new GridBagLayout());
+        dtoSuffixPanel.setBorder(IdeBorderFactory.createTitledBorder("DTO 電文代號後綴設定", true));
+        GridBagConstraints dtoGbc = new GridBagConstraints(); // Use new constraints for inner layout
+        dtoGbc.gridx = 0;
+        dtoGbc.gridy = 0;
+        dtoGbc.anchor = GridBagConstraints.WEST;
+        dtoGbc.insets = JBUI.insets(2, 5);
+        dtoSuffixPanel.add(new JLabel("參數 DTO 後綴:"), dtoGbc);
+
+        dtoGbc.gridx = 1;
+        dtoGbc.fill = GridBagConstraints.HORIZONTAL;
+        dtoGbc.weightx = 1.0;
+        parameterDtoSuffixField = new JTextField();
+        dtoSuffixPanel.add(parameterDtoSuffixField, dtoGbc);
+
+        dtoGbc.gridx = 0;
+        dtoGbc.gridy = 1;
+        dtoGbc.fill = GridBagConstraints.NONE;
+        dtoGbc.weightx = 0;
+        dtoSuffixPanel.add(new JLabel("返回 DTO 後綴:"), dtoGbc);
+
+        dtoGbc.gridx = 1;
+        dtoGbc.fill = GridBagConstraints.HORIZONTAL;
+        dtoGbc.weightx = 1.0;
+        returnTypeDtoSuffixField = new JTextField();
+        dtoSuffixPanel.add(returnTypeDtoSuffixField, dtoGbc);
+
+        // Add dtoSuffixPanel using the main panel's constraints
+        myMainPanel.add(dtoSuffixPanel, gbc);
+        gbc.gridy++; // Increment gridy
+
+        // --- Filler --- (Push everything up)
+        gbc.weighty = 1.0; // Give remaining vertical space to filler
         gbc.fill = GridBagConstraints.BOTH;
-        JPanel filler2 = new JPanel();
-        // 使填充面板透明
-        filler2.setOpaque(false);
-        myMainPanel.add(filler2, gbc);
+        JPanel filler = new JPanel();
+        filler.setOpaque(false);
+        myMainPanel.add(filler, gbc);
 
         // 加載設定
         loadSettings();
@@ -389,6 +426,9 @@ public class GitSettingsConfigurable implements Configurable {
         checkGitBranchCheckbox.setSelected(settings.isCheckGitBranch());
         // 加載程式碼檢查開關設定
         checkCodeQualityCheckbox.setSelected(settings.isCheckCodeQuality());
+        // 新增 DTO 後綴重置
+        parameterDtoSuffixField.setText(settings.getParameterDtoSuffix());
+        returnTypeDtoSuffixField.setText(settings.getReturnTypeDtoSuffix());
     }
 
     /**
@@ -412,7 +452,10 @@ public class GitSettingsConfigurable implements Configurable {
         boolean gitCheckModified = checkGitBranchCheckbox.isSelected() != settings.isCheckGitBranch();
         // 檢查程式碼檢查開關是否被修改
         boolean codeQualityModified = checkCodeQualityCheckbox.isSelected() != settings.isCheckCodeQuality();
-        return branchesModified || javadocModified || gitCheckModified || codeQualityModified;
+        boolean dtoSuffixModified = !Objects.equals(settings.getParameterDtoSuffix(), parameterDtoSuffixField.getText())
+                ||
+                !Objects.equals(settings.getReturnTypeDtoSuffix(), returnTypeDtoSuffixField.getText());
+        return branchesModified || javadocModified || gitCheckModified || codeQualityModified || dtoSuffixModified;
     }
 
     /**
@@ -483,6 +526,9 @@ public class GitSettingsConfigurable implements Configurable {
         settings.setCheckGitBranch(checkGitBranchCheckbox.isSelected());
         // 保存程式碼檢查開關設定
         settings.setCheckCodeQuality(checkCodeQualityCheckbox.isSelected());
+        // 新增 DTO 後綴保存
+        settings.setParameterDtoSuffix(parameterDtoSuffixField.getText());
+        settings.setReturnTypeDtoSuffix(returnTypeDtoSuffixField.getText());
     }
 
     /**
@@ -506,6 +552,10 @@ public class GitSettingsConfigurable implements Configurable {
         checkGitBranchCheckbox = null;
         // 釋放程式碼檢查開關 UI 資源
         checkCodeQualityCheckbox = null;
+        fullJavadocRadioButton = null;
+        minimalJavadocRadioButton = null;
+        parameterDtoSuffixField = null;
+        returnTypeDtoSuffixField = null;
     }
 
     /**
