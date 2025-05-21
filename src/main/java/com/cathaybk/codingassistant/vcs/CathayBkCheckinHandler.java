@@ -5,6 +5,7 @@ import com.cathaybk.codingassistant.fix.AddApiIdDocFix;
 import com.cathaybk.codingassistant.fix.AddControllerApiIdFromServiceFix;
 import com.cathaybk.codingassistant.fix.AddFieldJavadocFix;
 import com.cathaybk.codingassistant.fix.AddServiceApiIdQuickFix;
+import com.cathaybk.codingassistant.settings.GitSettings;
 import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.codeInspection.ProblemHighlightType;
@@ -34,13 +35,13 @@ import com.intellij.ui.content.Content;
 import com.intellij.ui.content.ContentFactory;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import com.cathaybk.codingassistant.settings.GitSettings;
 
 import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -58,6 +59,8 @@ public class CathayBkCheckinHandler extends CheckinHandler {
     private final ProblemCollector problemCollector;
     private List<ProblemInfo> collectedProblems;
     private CathayBkProblemsPanel currentProblemsPanel;
+    // 用於異步操作的標記
+    private final AtomicBoolean gitCheckInProgress = new AtomicBoolean(false);
 
     public CathayBkCheckinHandler(CheckinProjectPanel panel) {
         LOG.info("CathayBk Checkin Handler 建構函式被呼叫！");
@@ -150,8 +153,52 @@ public class CathayBkCheckinHandler extends CheckinHandler {
         } else {
             LOG.info("Git 可用，執行相關操作");
 
-            // 執行 git fetch
+            // 方案1：使用改進後的同步方法（仍會在EDT上阻塞一點時間，但不應該太久）
             boolean fetchSuccess = gitHelper.performGitFetch();
+
+            /* 方案2：使用完全異步方法，但需要修改CheckinHandler邏輯
+            final CompletableFuture<ReturnResult> future = new CompletableFuture<>();
+
+            // 設置標記表示Git檢查正在進行中
+            gitCheckInProgress.set(true);
+
+            // 在背景執行 Git Fetch
+            gitHelper.performGitFetchInBackground(success -> {
+                // Git Fetch 完成後的處理
+                if (success) {
+                    LOG.info("Git fetch 成功執行");
+
+                    // 檢查分支是否落後
+                    List<String> behindBranches = gitHelper.checkBranchStatus();
+                    String currentBranch = gitHelper.getCurrentBranch();
+
+                    // 檢查是否需要顯示分支落後提示
+                    if (!behindBranches.isEmpty() && dialogHelper.showBranchBehindDialog(currentBranch, behindBranches)) {
+                        LOG.info("用戶選擇取消提交");
+                        future.complete(ReturnResult.CANCEL);
+                    } else {
+                        future.complete(ReturnResult.COMMIT);
+                    }
+                } else {
+                    LOG.warn("Git fetch 執行失敗");
+
+                    // 如果 Git 操作失敗，詢問用戶是否繼續
+                    if (dialogHelper.showGitFetchFailedDialog()) {
+                        LOG.info("用戶選擇在 Git fetch 失敗後取消提交");
+                        future.complete(ReturnResult.CANCEL);
+                    } else {
+                        future.complete(ReturnResult.COMMIT);
+                    }
+                }
+
+                // 清除標記
+                gitCheckInProgress.set(false);
+            });
+
+            // 這種情況需要在CheckinHandler層面做較大修改，不適合直接返回result
+            // 所以這只是一個示例，實際使用需要更多適配工作
+            */
+
             if (fetchSuccess) {
                 LOG.info("Git fetch 成功執行");
 

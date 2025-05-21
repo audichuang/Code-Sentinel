@@ -1,6 +1,7 @@
 <idea-plugin>
     <id>com.cathaybk.codingassistant</id>
     <name>Code Sentinel</name>
+    <version>1.4.0</version>
     <vendor email="audiapplication880208@gmail.com" url="https://github.com/audichuang">AudiChuang</vendor>
 
     <description><![CDATA[
@@ -46,6 +47,45 @@
 
     </body></html>
     ]]></description>
+
+    <change-notes><![CDATA[
+    <b>v1.4.0</b>
+    <ul>
+        <li>優化記憶體資源使用，減少資源洩漏風險。</li>
+        <li>改善 PSI 元素處理邏輯，提高穩定性。</li>
+        <li>為主要工具類實現批次處理和緩存機制。</li>
+        <li>強化資源釋放機制，避免長時間運行時效能衰退。</li>
+        <li>低記憶體環境下自動調整工作模式，提高適應性。</li>
+    </ul>
+    <br/>
+    <b>v1.3.0</b>
+    <ul>
+        <li>插件更名為 "Code Sentinel"。</li>
+        <li>新增設定選項：可開關 Git 分支落後檢查。</li>
+        <li>新增設定選項：可開關程式碼規範檢查。</li>
+        <li>新增設定選項：可配置 Javadoc 生成方式 (完整/最小)。</li>
+        <li>設定頁面 UI 優化，分區顯示並加入範例說明。</li>
+        <li>增強設定中目標分支名稱的驗證規則。</li>
+        <li>移除設定成功時的冗餘提示彈窗。</li>
+        <li>修復 Javadoc 生成中的換行符問題。</li>
+        <li>(舊) 問題面板界面優化，移除搜尋框，修復 HTML 顯示問題，提高檢查執行效率。</li> 
+    </ul>
+    <br/>
+    <b>v1.2.0</b>
+    <ul>
+        <li>增加對25.1版本的支持，新增bean加入註解功能</li>
+    </ul>
+    <br/>
+    <b>v1.1.0</b>
+    <ul>
+        <li>優化效能，修正已知問題，改善使用者體驗</li>
+    </ul>
+    <br/>
+    <b>v1.0.0</b>
+    <ul>
+        <li>初始版本，提供API註解檢查和Service關聯功能</li>
+    </ul>
+    ]]></change-notes>
 
     <!-- 更新 until-build 到一個較新的版本或保持通用 -->
     <idea-version since-build="231"/>

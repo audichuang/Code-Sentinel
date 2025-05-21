@@ -1,11 +1,11 @@
 plugins {
     id("java")
-    id("org.jetbrains.intellij.platform") version "2.4.0"
-    id("io.freefair.lombok") version "8.4"
+    id("org.jetbrains.intellij.platform") version "2.6.0"
+    id("io.freefair.lombok") version "8.6"
 }
 
 group = "com.cathaybk"
-version = "1.3.0"
+version = "1.4.0"
 
 repositories {
     mavenCentral()
@@ -18,24 +18,25 @@ repositories {
 configurations.all {
     resolutionStrategy {
         // 強制使用指定版本的 Jackson
-        force("com.fasterxml.jackson.core:jackson-core:2.15.2")
-        force("com.fasterxml.jackson.core:jackson-databind:2.15.2")
-        force("com.fasterxml.jackson.core:jackson-annotations:2.15.2")
+        force("com.fasterxml.jackson.core:jackson-core:2.19.0")
+        force("com.fasterxml.jackson.core:jackson-databind:2.19.0")
+        force("com.fasterxml.jackson.core:jackson-annotations:2.19.0")
+
     }
 }
 
 dependencies {
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.8.1")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.8.1")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.2")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.2")
     
     // 添加 lombok 依賴
-    compileOnly("org.projectlombok:lombok:1.18.36")
-    annotationProcessor("org.projectlombok:lombok:1.18.36")
+    compileOnly("org.projectlombok:lombok:1.18.38")
+    annotationProcessor("org.projectlombok:lombok:1.18.38")
     
     // 添加 Jackson 依賴（明確指定版本）
-    implementation("com.fasterxml.jackson.core:jackson-core:2.15.2")
-    implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
-    implementation("com.fasterxml.jackson.core:jackson-annotations:2.15.2")
+    implementation("com.fasterxml.jackson.core:jackson-core:2.19.0")
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.19.0")
+    implementation("com.fasterxml.jackson.core:jackson-annotations:2.19.0")
     
     // 指定 IntelliJ Platform 依賴
     intellijPlatform {
@@ -53,6 +54,7 @@ tasks {
     withType<JavaCompile> {
         sourceCompatibility = "17"
         targetCompatibility = "17"
+        options.release.set(17)
     }
     
     test {
@@ -81,8 +83,6 @@ tasks {
     named<org.jetbrains.intellij.platform.gradle.tasks.RunIdeTask>("runIde") {
         // 設置系統屬性
         systemProperty("idea.platform.prefix", "idea")
-        // 分配更多記憶體
-        jvmArgs("-Xmx1g")
     }
 }
 
@@ -120,6 +120,15 @@ intellijPlatform {
         }
         
         changeNotes.set("""
+            <b>v1.4.0</b>
+            <ul>
+                <li>優化記憶體資源使用，減少資源洩漏風險。</li>
+                <li>改善 PSI 元素處理邏輯，提高穩定性。</li>
+                <li>為主要工具類實現批次處理和緩存機制。</li>
+                <li>強化資源釋放機制，避免長時間運行時效能衰退。</li>
+                <li>低記憶體環境下自動調整工作模式，提高適應性。</li>
+            </ul>
+            <br/>
             <b>v1.3.0</b>
             <ul>
                 <li>插件更名為 "Code Sentinel"。</li>
