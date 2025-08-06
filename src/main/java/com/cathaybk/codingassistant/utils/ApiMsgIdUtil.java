@@ -260,20 +260,69 @@ public class ApiMsgIdUtil {
     @NotNull
     public static String generateApiMsgId(@NotNull PsiMethod method) {
         String classNameAbbr = "";
+        String suffix = "";
         PsiClass containingClass = method.getContainingClass();
         if (containingClass != null) {
             String className = containingClass.getName();
             if (className != null) {
-                // 移除 "Controller" (忽略大小寫)，並轉大寫
-                classNameAbbr = className.replaceAll("(?i)Controller", "").toUpperCase();
+                // 簡化判斷邏輯
+                if (containingClass.isInterface() && isServiceInterface(containingClass)) {
+                    // Service 介面，移除 "Service"，加上 "Svc" 後綴
+                    classNameAbbr = className.replaceAll("(?i)Service", "").toUpperCase();
+                    suffix = "Svc";
+                } else if (!containingClass.isInterface() && 
+                           (containingClass.hasAnnotation("org.springframework.stereotype.Service") ||
+                            containingClass.hasAnnotation("javax.inject.Named") ||
+                            containingClass.hasAnnotation("jakarta.inject.Named"))) {
+                    // 實作類且有 Service 相關註解，加上 "SvcImpl" 後綴
+                    classNameAbbr = className.replaceAll("(?i)(Service)?Impl", "").toUpperCase();
+                    suffix = "SvcImpl";
+                } else if (isControllerClass(containingClass)) {
+                    // Controller 類別，移除 "Controller"
+                    classNameAbbr = className.replaceAll("(?i)Controller", "").toUpperCase();
+                } else {
+                    // 其他類別，保持原類名
+                    classNameAbbr = className.toUpperCase();
+                }
             }
         }
 
         String methodNameUpper = method.getName().toUpperCase();
         // 處理類名簡寫為空的情況
-        return "API-" + (StringUtils.isEmpty(classNameAbbr) ? "UNKNOWN" : classNameAbbr) + "_" + methodNameUpper;
+        String baseId = "API-" + (StringUtils.isEmpty(classNameAbbr) ? "UNKNOWN" : classNameAbbr) + "_" + methodNameUpper;
+        
+        // 加上 Service 後綴（如果有的話）
+        String result = StringUtils.isEmpty(suffix) ? baseId : baseId + "_" + suffix;
+        
+        // 輸出調試訊息到 IntelliJ 的 Event Log
+        if (containingClass != null) {
+            String debugMsg = "[ApiMsgIdUtil] Class: " + containingClass.getName() + 
+                               ", isInterface: " + containingClass.isInterface() + 
+                               ", hasServiceAnnotation: " + containingClass.hasAnnotation("org.springframework.stereotype.Service") +
+                               ", suffix: " + suffix +
+                               ", result: " + result;
+            System.out.println(debugMsg);
+            // 同時寫入到錯誤日誌，這樣更容易看到
+            System.err.println(debugMsg);
+        }
+        
+        return result;
     }
 
+    /**
+     * 為 Service 類別的方法生成專用的 API 電文代號。
+     * 根據 Service 類別的類型自動加上相應的後綴：
+     * - Service 介面：加上 "Svc" 後綴
+     * - Service 實現類：加上 "SvcImpl" 後綴
+     * 
+     * @param method Service 類別中的方法
+     * @return 生成的 API 電文代號，格式為 "API-{ClassName}_{MethodName}_{Suffix}"
+     */
+    @NotNull
+    public static String generateServiceApiMsgId(@NotNull PsiMethod method) {
+        return generateApiMsgId(method); // 現在 generateApiMsgId 已經支援 Service 後綴
+    }
+    
     /**
      * 查找所有使用了指定 Service 類別或其接口的 Controller API 方法，並提取這些 Controller 方法的電文代號。
      * <p>此方法完全基於 PSI 分析，不再依賴不可靠的文本搜索。</p>

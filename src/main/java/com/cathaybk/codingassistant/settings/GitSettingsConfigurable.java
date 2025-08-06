@@ -15,6 +15,7 @@ import org.jetbrains.annotations.Nullable;
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
+import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -60,6 +61,12 @@ public class GitSettingsConfigurable implements Configurable {
 
     /** 返回 DTO 後綴輸入字段 */
     private JTextField returnTypeDtoSuffixField;
+
+    /** Git 重置按鈕 */
+    private JButton gitResetButton;
+
+    /** Git 重置按鈕的 ActionListener */
+    private ActionListener gitResetListener;
 
     /** Git 分支名稱的非法字符正則表達式 */
     private static final Pattern INVALID_BRANCH_CHARS = Pattern.compile(".*[~^:?*\\[\\\\].*");
@@ -200,14 +207,16 @@ public class GitSettingsConfigurable implements Configurable {
         gitPanel.add(gitInputRow, gitGbc);
 
         // 重置按鈕使用更現代的樣式
-        JButton gitResetButton = createStyledButton("重置分支為預設值");
-        gitResetButton.addActionListener(e -> {
+        gitResetButton = createStyledButton("重置分支為預設值");
+        // 儲存 ActionListener 參考以便後續清理
+        gitResetListener = e -> {
             if (project != null) {
                 GitSettings settings = GitSettings.getInstance(project);
                 settings.setTargetBranchesFromString("dev");
                 loadSettings();
             }
-        });
+        };
+        gitResetButton.addActionListener(gitResetListener);
 
         JPanel gitButtonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         gitButtonPanel.setOpaque(false);
@@ -546,6 +555,13 @@ public class GitSettingsConfigurable implements Configurable {
      */
     @Override
     public void disposeUIResources() {
+        // 移除 ActionListener 以防止記憶體洩漏
+        if (gitResetButton != null && gitResetListener != null) {
+            gitResetButton.removeActionListener(gitResetListener);
+            gitResetListener = null;
+        }
+        
+        // 清理所有 UI 元件參考
         myMainPanel = null;
         targetBranchesField = null;
         generateFullJavadocCheckbox = null;
@@ -556,6 +572,7 @@ public class GitSettingsConfigurable implements Configurable {
         minimalJavadocRadioButton = null;
         parameterDtoSuffixField = null;
         returnTypeDtoSuffixField = null;
+        gitResetButton = null;
     }
 
     /**

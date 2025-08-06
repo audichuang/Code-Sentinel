@@ -93,6 +93,54 @@ public class CathayBkInspectionUtil {
     }
 
     /**
+     * 檢查 Service 方法的電文代號 Javadoc。
+     * 這是新增的功能，為 Service 介面和實現類中的方法檢查電文代號。
+     *
+     * @param method 要檢查的 Service 方法。
+     * @return 包含問題資訊的 List，如果沒有問題則為空 List。
+     */
+    @NotNull
+    public static List<ProblemInfo> checkServiceMethodDoc(@NotNull PsiMethod method) {
+        List<ProblemInfo> problems = new ArrayList<>();
+
+        // 檢查是否為 Service 類別中的方法
+        PsiClass containingClass = method.getContainingClass();
+        if (containingClass == null || !ApiMsgIdUtil.isServiceClass(containingClass)) {
+            return problems; // 不是 Service 類別中的方法，不檢查
+        }
+        
+        // 調試輸出
+        System.err.println("[checkServiceMethodDoc] 檢查 Service 方法: " + containingClass.getName() + "." + method.getName());
+
+        // 排除一些不需要檢查的方法
+        if (method.isConstructor() || 
+            method.hasModifierProperty(PsiModifier.PRIVATE) ||
+            method.hasModifierProperty(PsiModifier.STATIC) ||
+            "toString".equals(method.getName()) ||
+            "equals".equals(method.getName()) ||
+            "hashCode".equals(method.getName()) ||
+            "clone".equals(method.getName())) {
+            return problems; // 跳過不需要檢查的方法
+        }
+
+        if (ApiMsgIdUtil.hasValidApiMsgId(method.getDocComment())) {
+            return problems; // 已有有效 ID，不檢查
+        }
+
+        // --- 如果 Service 方法缺少有效的電文代號 ---
+        PsiElement problemElement = method.getNameIdentifier() != null ? method.getNameIdentifier() : method;
+        String serviceType = ApiMsgIdUtil.isServiceInterface(containingClass) ? "Service 介面" : "Service 實現類";
+        
+        problems.add(new ProblemInfo(
+                problemElement,
+                serviceType + "方法缺少有效的電文代號註解 (格式: ID 描述)",
+                ProblemHighlightType.WARNING
+        ));
+        
+        return problems;
+    }
+
+    /**
      * 檢查 Service 類別的電文代號 Javadoc。
      *
      * @param aClass 要檢查的 PsiClass。

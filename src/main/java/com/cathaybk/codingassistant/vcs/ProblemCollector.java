@@ -1,10 +1,12 @@
 package com.cathaybk.codingassistant.vcs;
 
+import com.cathaybk.codingassistant.cache.PsiInspectionCache;
 import com.cathaybk.codingassistant.common.ProblemInfo;
 import com.cathaybk.codingassistant.fix.AddApiIdDocFix;
 import com.cathaybk.codingassistant.fix.AddControllerApiIdFromServiceFix;
 import com.cathaybk.codingassistant.fix.AddFieldJavadocFix;
 import com.cathaybk.codingassistant.fix.AddServiceApiIdQuickFix;
+import com.cathaybk.codingassistant.fix.AddServiceClassApiIdDocFix;
 import com.cathaybk.codingassistant.util.CathayBkInspectionUtil;
 import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemDescriptor;
@@ -45,6 +47,7 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -54,7 +57,11 @@ import java.util.concurrent.atomic.AtomicReference;
 public class ProblemCollector implements Disposable {
     private static final Logger LOG = Logger.getInstance(ProblemCollector.class);
     private static final String TOOL_WINDOW_ID = "Code Sentinel 檢查";
-    private static final int BATCH_SIZE = 30; // 批次處理大小，避免過長處理導致 UI 凍結
+    private static final int BATCH_SIZE = 10; // 批次處理大小，減少以提高響應性
+    private static final int CANCEL_CHECK_INTERVAL = 5; // 取消檢查間隔
+    
+    // PSI 檢查緩存，大幅提高重複檢查的效能
+    private final PsiInspectionCache inspectionCache = new PsiInspectionCache();
 
     private final Project project;
     // 使用 WeakReference 包裝問題列表，允許當記憶體不足時被回收
@@ -202,7 +209,23 @@ public class ProblemCollector implements Disposable {
                         }
                         indicator.setText2("檢查 " + javaFile.getName());
 
+                        // 更頻繁的取消檢查
+                        if (filesChecked % CANCEL_CHECK_INTERVAL == 0 && indicator.isCanceled()) {
+                            LOG.info("使用者取消了檢查階段");
+                            shouldCancel.set(true);
+                            return;
+                        }
+                        
                         try {
+                            // 先檢查緩存，避免重複檢查
+                            Optional<List<ProblemInfo>> cachedResult = inspectionCache.getCachedResult(javaFile);
+                            if (cachedResult.isPresent()) {
+                                allProblems.addAll(cachedResult.get());
+                                continue; // 跳過檢查，使用緩存結果
+                            }
+                            
+                            // 執行檢查並緩存結果
+                            List<ProblemInfo> fileProblems = new ArrayList<>();
                             ReadAction.run(() -> {
                                 javaFile.accept(new JavaRecursiveElementWalkingVisitor() {
                                     @Override
@@ -211,7 +234,7 @@ public class ProblemCollector implements Disposable {
                                             super.visitClass(aClass);
                                             if (indicator.isCanceled())
                                                 return;
-                                            allProblems.addAll(CathayBkInspectionUtil.checkServiceClassDoc(aClass));
+                                            fileProblems.addAll(CathayBkInspectionUtil.checkServiceClassDoc(aClass));
                                         } catch (ProcessCanceledException e) {
                                             throw e; // 重新拋出取消異常
                                         } catch (Exception e) {
@@ -221,11 +244,17 @@ public class ProblemCollector implements Disposable {
 
                                     @Override
                                     public void visitMethod(@NotNull PsiMethod method) {
+                                        // 在方法訪問時檢查取消狀態
+                                        if (indicator.isCanceled()) {
+                                            return;
+                                        }
                                         try {
                                             super.visitMethod(method);
                                             if (indicator.isCanceled())
                                                 return;
-                                            allProblems.addAll(CathayBkInspectionUtil.checkApiMethodDoc(method));
+                                            fileProblems.addAll(CathayBkInspectionUtil.checkApiMethodDoc(method));
+                                            // 同時檢查 Service 方法
+                                            fileProblems.addAll(CathayBkInspectionUtil.checkServiceMethodDoc(method));
                                         } catch (ProcessCanceledException e) {
                                             throw e;
                                         } catch (Exception e) {
@@ -235,11 +264,15 @@ public class ProblemCollector implements Disposable {
 
                                     @Override
                                     public void visitField(@NotNull PsiField field) {
+                                        // 在欄位訪問時檢查取消狀態
+                                        if (indicator.isCanceled()) {
+                                            return;
+                                        }
                                         try {
                                             super.visitField(field);
                                             if (indicator.isCanceled())
                                                 return;
-                                            allProblems.addAll(CathayBkInspectionUtil.checkInjectedFieldDoc(field));
+                                            fileProblems.addAll(CathayBkInspectionUtil.checkInjectedFieldDoc(field));
                                         } catch (ProcessCanceledException e) {
                                             throw e;
                                         } catch (Exception e) {
@@ -248,6 +281,10 @@ public class ProblemCollector implements Disposable {
                                     }
                                 });
                             });
+                            
+                            // 緩存檢查結果
+                            inspectionCache.cacheResult(javaFile, fileProblems);
+                            allProblems.addAll(fileProblems);
                         } catch (ProcessCanceledException e) {
                             throw e; // 重新拋出取消異常
                         } catch (Exception e) {
@@ -255,10 +292,10 @@ public class ProblemCollector implements Disposable {
                         }
                     }
 
-                    // 釋放緩存，減少記憶體占用
-                    if (i > 0 && i % 100 == 0) {
-                        System.gc();
-                    }
+                    // 釋放緩存，減少記憶體占用 - 移除手動 GC 以避免卡頓
+                    // if (i > 0 && i % 100 == 0) {
+                    //     System.gc(); // 已移除：手動 GC 會造成所有執行緒暫停
+                    // }
                 }
 
                 LOG.info("檢查完成，發現 " + allProblems.size() + " 個問題");
@@ -538,7 +575,7 @@ public class ProblemCollector implements Disposable {
 
                 // 每處理一批次後，釋放記憶體
                 if (batchStart > 0 && batchStart % 100 == 0) {
-                    System.gc();
+                    // System.gc(); // 已移除：手動 GC 會造成所有執行緒暫停
                 }
             }
 
@@ -622,6 +659,11 @@ public class ProblemCollector implements Disposable {
         }
         if (description.contains("Service 類別缺少")
                 && (element instanceof PsiIdentifier || element instanceof PsiClass || element instanceof PsiKeyword)) {
+            return new AddServiceClassApiIdDocFix();
+        }
+        // 處理 Service 方法的快速修復（新增功能）
+        if ((description.contains("Service 介面方法缺少") || description.contains("Service 實現類方法缺少"))
+                && (element instanceof PsiIdentifier || element instanceof PsiMethod)) {
             return new AddApiIdDocFix();
         }
         if (description.contains("注入的欄位") && description.contains("缺少 Javadoc")) {
@@ -767,7 +809,7 @@ public class ProblemCollector implements Disposable {
         }
 
         // 強制觸發垃圾回收
-        System.gc();
+        // System.gc(); // 已移除：手動 GC 會造成所有執行緒暫停
 
         LOG.info("ProblemCollector 已釋放資源");
     }

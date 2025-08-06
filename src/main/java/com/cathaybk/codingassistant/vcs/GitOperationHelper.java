@@ -17,9 +17,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -28,7 +26,8 @@ import java.util.function.Consumer;
  */
 public class GitOperationHelper {
     private static final Logger LOG = Logger.getInstance(GitOperationHelper.class);
-    private static final int PROCESS_TIMEOUT_SECONDS = 30;
+    private static final int PROCESS_TIMEOUT_SECONDS = 15;
+    private static final int QUICK_CHECK_TIMEOUT_SECONDS = 5;
     private static final int BUFFER_SIZE = 8192;
 
     private final Project project;
@@ -130,18 +129,21 @@ public class GitOperationHelper {
                 try (BufferedReader reader = new BufferedReader(
                         new InputStreamReader(process.getInputStream()), BUFFER_SIZE)) {
                     String line;
-                    while ((line = reader.readLine()) != null) {
+                    while ((line = reader.readLine()) != null && !Thread.currentThread().isInterrupted()) {
                         output.append(line).append('\n');
                         if (indicator != null) {
                             indicator.setText2(line);
                         }
                     }
                 } catch (IOException e) {
-                    LOG.error("讀取進程輸出時發生錯誤", e);
+                    if (!Thread.currentThread().isInterrupted()) {
+                        LOG.error("讀取進程輸出時發生錯誤", e);
+                    }
                 } finally {
                     outputLatch.countDown();
                 }
             }, "Git-Output-Reader");
+            outputThread.setDaemon(true); // 設定為 daemon thread，確保不會阻止 JVM 關閉
             outputThread.start();
 
             // 使用 CompletableFuture 來等待進程完成並獲取結果
@@ -162,12 +164,15 @@ public class GitOperationHelper {
                 }
             });
 
-            // 在這裡等待進程完成，但提供取消能力
+            // 使用更高效的等待機制，避免忙等待
             Integer exitCode = null;
-            while (exitCode == null) {
-                try {
-                    exitCode = exitCodeFuture.getNow(null);
-                    if (exitCode == null) {
+            try {
+                // 使用更短的超時時間來檢查取消狀態
+                exitCode = exitCodeFuture.get(100, TimeUnit.MILLISECONDS);
+            } catch (TimeoutException e) {
+                // 超時是正常的，繼續等待但檢查取消狀態
+                while (exitCode == null) {
+                    try {
                         // 檢查是否取消
                         if (indicator != null && indicator.isCanceled()) {
                             LOG.info("用戶取消了 Git fetch 操作");
@@ -175,19 +180,48 @@ public class GitOperationHelper {
                             outputThread.interrupt();
                             return false;
                         }
-                        Thread.sleep(50); // 短暫休眠，避免忙等待
+                        
+                        // 使用更短的等待時間來提高響應性
+                        exitCode = exitCodeFuture.get(200, TimeUnit.MILLISECONDS);
+                    } catch (TimeoutException te) {
+                        // 繼續等待
+                        continue;
+                    } catch (InterruptedException ie) {
+                        LOG.error("等待 git fetch 進程時被中斷", ie);
+                        process.destroyForcibly();
+                        outputThread.interrupt();
+                        Thread.currentThread().interrupt();
+                        return false;
                     }
-                } catch (InterruptedException e) {
-                    LOG.error("等待 git fetch 進程時被中斷", e);
-                    process.destroyForcibly();
-                    outputThread.interrupt();
-                    Thread.currentThread().interrupt();
-                    return false;
                 }
+            } catch (InterruptedException e) {
+                LOG.error("等待 git fetch 進程時被中斷", e);
+                process.destroyForcibly();
+                outputThread.interrupt();
+                Thread.currentThread().interrupt();
+                return false;
+            } catch (ExecutionException e) {
+                LOG.error("Git fetch 進程執行時發生錯誤", e);
+                process.destroyForcibly();
+                outputThread.interrupt();
+                return false;
             }
 
             // 等待輸出線程完成（設置短超時，避免無限等待）
-            outputLatch.await(1, TimeUnit.SECONDS);
+            try {
+                if (!outputLatch.await(1, TimeUnit.SECONDS)) {
+                    // 如果輸出線程沒有在 1 秒內完成，嘗試中斷它
+                    if (outputThread.isAlive()) {
+                        outputThread.interrupt();
+                        LOG.warn("輸出線程超時，已中斷");
+                    }
+                }
+            } catch (InterruptedException e) {
+                // 確保輸出線程被中斷
+                outputThread.interrupt();
+                Thread.currentThread().interrupt();
+                LOG.warn("等待輸出線程時被中斷");
+            }
 
             boolean success = exitCode == 0;
             if (success) {

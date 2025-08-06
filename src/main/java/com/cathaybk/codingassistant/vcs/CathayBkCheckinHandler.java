@@ -5,6 +5,7 @@ import com.cathaybk.codingassistant.fix.AddApiIdDocFix;
 import com.cathaybk.codingassistant.fix.AddControllerApiIdFromServiceFix;
 import com.cathaybk.codingassistant.fix.AddFieldJavadocFix;
 import com.cathaybk.codingassistant.fix.AddServiceApiIdQuickFix;
+import com.cathaybk.codingassistant.fix.AddServiceClassApiIdDocFix;
 import com.cathaybk.codingassistant.settings.GitSettings;
 import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemDescriptor;
@@ -12,6 +13,7 @@ import com.intellij.codeInspection.ProblemHighlightType;
 import com.intellij.codeInspection.QuickFix;
 import com.intellij.icons.AllIcons;
 import com.intellij.lang.annotation.ProblemGroup;
+import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.command.WriteCommandAction;
@@ -22,6 +24,7 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.vcs.CheckinProjectPanel;
 import com.intellij.openapi.vcs.changes.Change;
@@ -46,8 +49,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 處理提交前的檢查邏輯
+ * 實作 Disposable 以確保資源正確釋放
  */
-public class CathayBkCheckinHandler extends CheckinHandler {
+public class CathayBkCheckinHandler extends CheckinHandler implements Disposable {
     private static final Logger LOG = Logger.getInstance(CathayBkCheckinHandler.class);
     private static final String TOOL_WINDOW_ID = "Code Sentinel 檢查";
     private static final String SETTING_TITLE_NAME = "Code Sentinel";
@@ -69,6 +73,11 @@ public class CathayBkCheckinHandler extends CheckinHandler {
         this.gitHelper = new GitOperationHelper(project);
         this.dialogHelper = new CheckinDialogHelper(project);
         this.problemCollector = new ProblemCollector(project);
+        
+        // 註冊為 Disposable 以確保在適當時機被清理
+        if (project != null && !project.isDisposed()) {
+            Disposer.register(project, this);
+        }
     }
 
     private static int getLineNumber(@Nullable Project project, @Nullable PsiElement element) {
@@ -309,33 +318,43 @@ public class CathayBkCheckinHandler extends CheckinHandler {
             return;
         }
 
-        PsiElement element = problem.getElement();
-        if (element == null || !ReadAction.compute(element::isValid)) {
-            Messages.showErrorDialog(project, "無法應用修復：關聯的程式碼元素已失效。\n請嘗試重新檢查。", "快速修復失敗");
-            currentProblemsPanel.removeProblem(problem);
-            return;
-        }
-
-        LocalQuickFix fixToApply = ReadAction.compute(() -> determineQuickFix(problem));
-
-        if (fixToApply == null) {
-            Messages.showWarningDialog(project, "未能找到適用於此問題的自動修復方案。\n描述: " + problem.getDescription(), "快速修復");
-            return;
-        }
-
-        ProblemDescriptor dummyDescriptor = ReadAction
-                .compute(() -> createDummyDescriptor(element, problem.getDescription()));
-        WriteCommandAction.runWriteCommandAction(project, fixToApply.getName(), null, () -> {
-            try {
-                fixToApply.applyFix(project, dummyDescriptor);
-                LOG.info("成功應用快速修復: " + fixToApply.getName() + " 到元素: " + ReadAction.compute(() -> element.getText()));
-                currentProblemsPanel.removeProblem(problem);
-                updateToolWindowContentTitle();
-            } catch (Exception ex) {
-                LOG.error("應用快速修復時出錯 (" + fixToApply.getName() + "): " + ex.getMessage(), ex);
-                Messages.showErrorDialog(project, "應用快速修復時出錯: " + ex.getMessage(), "快速修復失敗");
+        // 合併 ReadAction 呼叫以提高效能
+        ReadAction.run(() -> {
+            PsiElement element = problem.getElement();
+            if (element == null || !element.isValid()) {
+                ApplicationManager.getApplication().invokeLater(() -> {
+                    Messages.showErrorDialog(project, "無法應用修復：關聯的程式碼元素已失效。\n請嘗試重新檢查。", "快速修復失敗");
+                    currentProblemsPanel.removeProblem(problem);
+                });
+                return;
             }
+
+            LocalQuickFix fixToApply = determineQuickFix(problem);
+            if (fixToApply == null) {
+                ApplicationManager.getApplication().invokeLater(() -> {
+                    Messages.showWarningDialog(project, "未能找到適用於此問題的自動修復方案。\n描述: " + problem.getDescription(), "快速修復");
+                });
+                return;
+            }
+
+            ProblemDescriptor dummyDescriptor = createDummyDescriptor(element, problem.getDescription());
+            
+            // 在 WriteAction 中執行修復
+            ApplicationManager.getApplication().invokeLater(() -> {
+                WriteCommandAction.runWriteCommandAction(project, fixToApply.getName(), null, () -> {
+                    try {
+                        fixToApply.applyFix(project, dummyDescriptor);
+                        LOG.info("成功應用快速修復: " + fixToApply.getName());
+                        currentProblemsPanel.removeProblem(problem);
+                        updateToolWindowContentTitle();
+                    } catch (Exception ex) {
+                        LOG.error("應用快速修復時出錯 (" + fixToApply.getName() + "): " + ex.getMessage(), ex);
+                        Messages.showErrorDialog(project, "應用快速修復時出錯: " + ex.getMessage(), "快速修復失敗");
+                    }
+                });
+            });
         });
+        // 已在上面的 ReadAction 中處理
     }
 
     private void applyAllQuickFixes() {
@@ -486,6 +505,11 @@ public class CathayBkCheckinHandler extends CheckinHandler {
         }
         if (description.contains("Service 類別缺少")
                 && (element instanceof PsiIdentifier || element instanceof PsiClass || element instanceof PsiKeyword)) {
+            return new AddServiceClassApiIdDocFix();
+        }
+        // 處理 Service 方法的快速修復（新增功能）
+        if ((description.contains("Service 介面方法缺少") || description.contains("Service 實現類方法缺少"))
+                && (element instanceof PsiIdentifier || element instanceof PsiMethod)) {
             return new AddApiIdDocFix();
         }
         if (description.contains("注入的欄位") && description.contains("缺少 Javadoc")) {
@@ -583,5 +607,32 @@ public class CathayBkCheckinHandler extends CheckinHandler {
                 return null;
             }
         };
+    }
+    
+    @Override
+    public void dispose() {
+        LOG.info("CathayBkCheckinHandler dispose 被呼叫");
+        
+        // 清理 ToolWindow 參考
+        if (currentProblemsPanel != null) {
+            // 如果 panel 實作了 Disposable，確保它被 dispose
+            if (currentProblemsPanel instanceof Disposable) {
+                Disposer.dispose((Disposable) currentProblemsPanel);
+            }
+            currentProblemsPanel = null;
+        }
+        
+        // 清理問題列表
+        if (collectedProblems != null) {
+            collectedProblems.clear();
+            collectedProblems = null;
+        }
+        
+        // 清理原子標記
+        gitCheckInProgress.set(false);
+        
+        // 注意：gitHelper、dialogHelper 和 problemCollector 可能在其他地方也有使用
+        // 所以不在這裡 dispose 它們，只是清理參考
+        // 如果它們是獨占的，可以考慮 dispose
     }
 }

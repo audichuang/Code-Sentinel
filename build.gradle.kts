@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.cathaybk"
-version = "1.4.0"
+version = "1.5.0"
 
 repositories {
     mavenCentral()
@@ -120,6 +120,17 @@ intellijPlatform {
         }
         
         changeNotes.set("""
+            <b>v1.5.0</b>
+            <ul>
+                <li>新增 Service 類別與方法的電文代號檢查功能</li>
+                <li>支援 Service 介面與實現類的自動識別與後綴生成（Svc/SvcImpl）</li>
+                <li>優化檔案變更檢測器，提升大型專案的檢查效能</li>
+                <li>新增 PSI 檢查結果緩存機制，避免重複檢查</li>
+                <li>改進資源管理，實作 Disposable 介面防止記憶體洩漏</li>
+                <li>修正 Service API ID 生成時的格式問題</li>
+                <li>支援最新版 IntelliJ IDEA 2024.3</li>
+            </ul>
+            <br/>
             <b>v1.4.0</b>
             <ul>
                 <li>優化記憶體資源使用，減少資源洩漏風險。</li>
