@@ -1,6 +1,6 @@
 package com.cathaybk.codingassistant.vcs;
 
-import com.cathaybk.codingassistant.cache.PsiInspectionCache;
+import com.cathaybk.codingassistant.cache.InspectionCacheManager;
 import com.cathaybk.codingassistant.common.ProblemInfo;
 import com.cathaybk.codingassistant.fix.AddApiIdDocFix;
 import com.cathaybk.codingassistant.fix.AddControllerApiIdFromServiceFix;
@@ -60,8 +60,8 @@ public class ProblemCollector implements Disposable {
     private static final int BATCH_SIZE = 10; // 批次處理大小，減少以提高響應性
     private static final int CANCEL_CHECK_INTERVAL = 5; // 取消檢查間隔
     
-    // PSI 檢查緩存，大幅提高重複檢查的效能
-    private final PsiInspectionCache inspectionCache = new PsiInspectionCache();
+    // PSI 檢查緩存，使用單例管理器避免重複創建
+    private final InspectionCacheManager inspectionCache;
 
     private final Project project;
     // 使用 WeakReference 包裝問題列表，允許當記憶體不足時被回收
@@ -72,6 +72,8 @@ public class ProblemCollector implements Disposable {
 
     public ProblemCollector(@NotNull Project project) {
         this.project = project;
+        // 使用單例的緩存管理器
+        this.inspectionCache = InspectionCacheManager.getInstance(project);
         // 註冊以便專案關閉時釋放資源
         Disposer.register(project, this);
     }

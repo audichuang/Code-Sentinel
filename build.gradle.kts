@@ -1,6 +1,8 @@
+import java.util.EnumSet
+
 plugins {
     id("java")
-    id("org.jetbrains.intellij.platform") version "2.6.0"
+    id("org.jetbrains.intellij.platform") version "2.7.0"
     id("io.freefair.lombok") version "8.6"
 }
 
@@ -38,15 +40,17 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-databind:2.19.0")
     implementation("com.fasterxml.jackson.core:jackson-annotations:2.19.0")
     
-    // 指定 IntelliJ Platform 依賴
+    // 使用 IntelliJ IDEA Ultimate 2024.3
     intellijPlatform {
-        create("IC", "2024.3")
+        intellijIdeaUltimate("2024.3")
         bundledPlugin("com.intellij.java")
+        
+        // 插件驗證器
+        pluginVerifier()
+        
+        // 測試框架支援
+        testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
     }
-//    intellijPlatform {
-//        local("/Applications/IntelliJ IDEA.app")
-//        bundledPlugin("com.intellij.java")
-//    }
 }
 
 tasks {
@@ -86,8 +90,12 @@ tasks {
     }
 }
 
-// 配置 IntelliJ Platform 插件
+// 配置 IntelliJ Platform 插件（使用 2.7.0 新特性）
 intellijPlatform {
+    // 啟用自動重載功能（開發時很有用）
+    autoReload.set(true)
+    
+    // 插件配置
     pluginConfiguration {
         id.set("com.cathaybk.codingassistant")
         name.set("Code Sentinel")
@@ -116,7 +124,8 @@ intellijPlatform {
 
         ideaVersion {
             sinceBuild.set("231")
-            // untilBuild.set("251.*")
+            // 使用本地版本時，不設定 untilBuild 以支援最新版本
+            // untilBuild 留空表示沒有版本上限
         }
         
         changeNotes.set("""
@@ -168,5 +177,29 @@ intellijPlatform {
                  <li>初始版本，提供API註解檢查和Service關聯功能</li>
             </ul>
         """)
+    }
+    
+    // 插件驗證配置（2.7.0 新功能）
+    pluginVerification {
+        // 驗證的 IDE 版本
+        ides {
+            recommended()
+        }
+        
+        // 失敗級別配置 - 只檢查嚴重問題
+        failureLevel.set(
+            EnumSet.of(
+                org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.INVALID_PLUGIN
+            )
+        )
+    }
+    
+    // 簽名配置（如果需要）
+    if (file("chain.crt").exists() && file("private.pem").exists()) {
+        signing {
+            certificateChainFile.set(file("chain.crt"))
+            privateKeyFile.set(file("private.pem"))
+            // password.set(providers.environmentVariable("PRIVATE_KEY_PASSWORD"))
+        }
     }
 } 

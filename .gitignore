@@ -30,4 +30,5 @@ Desktop.ini
 
 # Generated files
 bin/
-gen/ 
+gen/
+intellij-platform-gradle-plugin-2.7.2/
