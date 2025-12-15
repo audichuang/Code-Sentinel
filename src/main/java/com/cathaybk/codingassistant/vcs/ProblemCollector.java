@@ -38,6 +38,8 @@ import com.intellij.psi.*;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.ui.content.Content;
 import com.intellij.ui.content.ContentFactory;
+import com.intellij.notification.NotificationGroupManager;
+import com.intellij.notification.NotificationType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -371,10 +373,17 @@ public class ProblemCollector implements Disposable {
             // 獲取或創建工具窗口
             toolWindow = toolWindowManager.getToolWindow(TOOL_WINDOW_ID);
             if (toolWindow == null) {
+                // 使用現代的 ToolWindow API
                 toolWindow = toolWindowManager.registerToolWindow(
-                        TOOL_WINDOW_ID, true, ToolWindowAnchor.BOTTOM, project, true);
+                        TOOL_WINDOW_ID, 
+                        true, 
+                        ToolWindowAnchor.BOTTOM, 
+                        project, 
+                        true,
+                        false); // canWorkInDumbMode = false
                 toolWindow.setIcon(AllIcons.Toolwindows.Problems);
                 toolWindow.setStripeTitle("Code Sentinel");
+                toolWindow.setAvailable(true);
             }
 
             // 創建問題面板
@@ -392,24 +401,21 @@ public class ProblemCollector implements Disposable {
             ContentFactory contentFactory = ContentFactory.getInstance();
             String contentTitle = "檢查結果 (" + problems.size() + ")";
             Content content = contentFactory.createContent(problemsPanel, contentTitle, false);
+            content.setCloseable(true);
+            content.setDisposer(problemsPanel);
             toolWindow.getContentManager().addContent(content);
 
-            // 顯示工具窗口
-            toolWindow.show(() -> {
-                int maxHeight = 200;
-                Component component = toolWindow.getComponent();
-                if (component != null) {
-                    component.setPreferredSize(new Dimension(component.getWidth(), maxHeight));
-
-                    SwingUtilities.invokeLater(() -> {
-                        if (component.isDisplayable()) {
-                            component.revalidate();
-                            component.repaint();
-                        }
-                    });
-                }
-
-                toolWindow.activate(null, true, true);
+            // 顯示工具窗口 - 使用更簡潔的 API
+            toolWindow.show();
+            toolWindow.activate(() -> {
+                // 使用通知系統提示用戶
+                NotificationGroupManager.getInstance()
+                    .getNotificationGroup("Code Sentinel")
+                    .createNotification(
+                        "Code Sentinel",
+                        "發現 " + problems.size() + " 個問題，請在工具窗口中查看",
+                        NotificationType.WARNING)
+                    .notify(project);
             });
         });
     }

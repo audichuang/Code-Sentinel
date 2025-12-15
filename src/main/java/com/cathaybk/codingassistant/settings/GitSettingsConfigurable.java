@@ -2,6 +2,9 @@ package com.cathaybk.codingassistant.settings;
 
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.ConfigurationException;
+import com.intellij.openapi.options.SearchableConfigurable;
+import org.jetbrains.annotations.NonNls;
+import org.jetbrains.annotations.NotNull;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.ui.Messages;
@@ -30,10 +33,21 @@ import java.util.regex.Pattern;
  *
  * 界面使用 GridBagLayout 實現靈活的佈局，並遵循 IntelliJ IDEA 的 UI 設計指南
  */
-public class GitSettingsConfigurable implements Configurable {
+public class GitSettingsConfigurable implements SearchableConfigurable {
     /** 當前項目實例 */
     @Nullable
     private Project project;
+    
+    /**
+     * 取得唯一識別 ID（用於搜尋功能）
+     * @return 搜尋用的唯一 ID
+     */
+    @Override
+    @NonNls
+    @NotNull
+    public String getId() {
+        return "com.cathaybk.codingassistant.settings";
+    }
 
     /** 主配置面板 */
     private JPanel myMainPanel;

@@ -22,6 +22,14 @@ import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.treeStructure.Tree;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.tree.TreeUtil;
+import com.intellij.ui.JBColor;
+import com.intellij.ui.SimpleColoredComponent;
+import com.intellij.ui.SimpleTextAttributes;
+import com.intellij.util.ui.UIUtil;
+import com.intellij.ui.ColorUtil;
+import com.intellij.ui.OnePixelSplitter;
+import com.intellij.ui.components.JBLabel;
+import com.intellij.ui.components.panels.NonOpaquePanel;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
@@ -231,13 +239,12 @@ public class CathayBkProblemsPanel extends JPanel implements com.intellij.openap
     // --- UI Initialization ---
 
     private void initializeUI() {
-        setBackground(UIManager.getColor("Panel.background"));
+        // 使用 IntelliJ 的顏色主題
+        setBackground(UIUtil.getPanelBackground());
 
-        // 水平分割（左右格式）- 7:3比例
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        splitPane.setResizeWeight(0.7); // 設置左側佔70%比重
-        splitPane.setBorder(null);
-        splitPane.setDividerSize(5);
+        // 使用 OnePixelSplitter 替代 JSplitPane (更輕量級)
+        OnePixelSplitter splitPane = new OnePixelSplitter(false, 0.7f);
+        splitPane.setHonorComponentsMinimumSize(true);
 
         // --- Left Panel (Tree) ---
         this.problemTree = createProblemTree(getCurrentProblems());
@@ -245,24 +252,38 @@ public class CathayBkProblemsPanel extends JPanel implements com.intellij.openap
         treeScrollPane.setBorder(JBUI.Borders.empty());
 
         JPanel leftPanel = new JPanel(new BorderLayout());
-        JLabel treeTitle = new JLabel("問題列表（單擊查看詳情，雙擊跳轉到代碼）");
+        leftPanel.setBackground(UIUtil.getPanelBackground());
+        
+        // 使用 JBLabel 替代 JLabel
+        JBLabel treeTitle = new JBLabel("問題列表（單擊查看詳情，雙擊跳轉到代碼）");
         treeTitle.setBorder(JBUI.Borders.empty(5, 8));
-        treeTitle.setFont(treeTitle.getFont().deriveFont(Font.BOLD));
+        treeTitle.setFont(UIUtil.getLabelFont(UIUtil.FontSize.NORMAL).deriveFont(Font.BOLD));
+        treeTitle.setForeground(UIUtil.getLabelForeground());
 
         leftPanel.add(treeTitle, BorderLayout.NORTH);
         leftPanel.add(treeScrollPane, BorderLayout.CENTER);
 
         // --- Right Panel (Details) ---
         JPanel rightPanel = new JPanel(new BorderLayout());
-        JLabel detailsTitle = new JLabel("問題詳情");
+        rightPanel.setBackground(UIUtil.getPanelBackground());
+        JBLabel detailsTitle = new JBLabel("問題詳情");
         detailsTitle.setBorder(JBUI.Borders.empty(5, 8));
-        detailsTitle.setFont(detailsTitle.getFont().deriveFont(Font.BOLD));
+        detailsTitle.setFont(UIUtil.getLabelFont(UIUtil.FontSize.NORMAL).deriveFont(Font.BOLD));
+        detailsTitle.setForeground(UIUtil.getLabelForeground());
         rightPanel.add(detailsTitle, BorderLayout.NORTH);
 
         this.detailsPane = new JEditorPane();
         this.detailsPane.setEditable(false);
         this.detailsPane.setContentType("text/html");
-        this.detailsPane.setBackground(UIManager.getColor("EditorPane.background"));
+        this.detailsPane.setBackground(UIUtil.getEditorPaneBackground());
+        this.detailsPane.setFont(UIUtil.getLabelFont());
+        // 設置 HTML 樣式以匹配 IDE 主題
+        String cssStyle = String.format(
+            "<style>body { font-family: %s; font-size: %dpt; color: %s; }</style>",
+            UIUtil.getLabelFont().getFamily(),
+            UIUtil.getLabelFont().getSize(),
+            ColorUtil.toHtmlColor(UIUtil.getLabelForeground())
+        );
         updateDetailsPaneForNode(null, getCurrentProblems().size()); // 初始顯示摘要
 
         JBScrollPane detailsScrollPane = new JBScrollPane(this.detailsPane);
@@ -270,25 +291,21 @@ public class CathayBkProblemsPanel extends JPanel implements com.intellij.openap
         rightPanel.add(detailsScrollPane, BorderLayout.CENTER);
 
         // --- Split Pane Setup ---
-        splitPane.setLeftComponent(leftPanel);
-        splitPane.setRightComponent(rightPanel);
-
-        // 確保面板顯示後，根據實際寬度調整分隔位置 (優化以避免記憶體洩漏)
-        ApplicationManager.getApplication().invokeLater(() -> {
-            if (splitPane.isDisplayable()) {
-                splitPane.setDividerLocation(0.7);
-            }
-        });
+        splitPane.setFirstComponent(leftPanel);
+        splitPane.setSecondComponent(rightPanel);
 
         // --- Toolbar ---
         JPanel toolbarPanel = new JPanel(new BorderLayout());
+        toolbarPanel.setBackground(UIUtil.getPanelBackground());
         toolbarPanel.setBorder(JBUI.Borders.empty(6, 10));
-        JLabel titleLabel = new JLabel("Code Sentinel 檢查結果");
+        JBLabel titleLabel = new JBLabel("Code Sentinel 檢查結果");
         titleLabel.setIcon(AllIcons.General.InspectionsEye);
-        titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, titleLabel.getFont().getSize() + 2));
+        titleLabel.setFont(UIUtil.getLabelFont(UIUtil.FontSize.NORMAL).deriveFont(Font.BOLD, UIUtil.getLabelFont().getSize() + 2));
+        titleLabel.setForeground(UIUtil.getLabelForeground());
         toolbarPanel.add(titleLabel, BorderLayout.WEST);
 
-        JPanel actionsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
+        JPanel actionsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, JBUI.scale(5), 0));
+        actionsPanel.setOpaque(false);
         JButton fixAllButton = new JButton("一鍵修復全部", AllIcons.Actions.QuickfixOffBulb);
         fixAllButton.setToolTipText("嘗試修復所有可自動修復的問題");
         fixAllButton.addActionListener(e -> {
@@ -305,6 +322,10 @@ public class CathayBkProblemsPanel extends JPanel implements com.intellij.openap
                         new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "quickFixSelected"));
             }
         });
+        
+        // 使用 IntelliJ 的按鈕樣式
+        fixAllButton.putClientProperty("JButton.buttonType", "segmented-only");
+        quickFixButton.putClientProperty("JButton.buttonType", "segmented-only");
 
         actionsPanel.add(fixAllButton);
         actionsPanel.add(quickFixButton);
@@ -312,9 +333,10 @@ public class CathayBkProblemsPanel extends JPanel implements com.intellij.openap
 
         // --- Status Bar ---
         JPanel statusPanel = new JPanel(new BorderLayout());
+        statusPanel.setBackground(UIUtil.getPanelBackground());
         statusPanel.setBorder(JBUI.Borders.empty(5, 10, 5, 10));
-        JLabel statusLabel = new JLabel("提示: 單擊問題可查看詳情，雙擊問題可直接跳轉到代碼位置");
-        statusLabel.setForeground(UIManager.getColor("Label.disabledForeground"));
+        JBLabel statusLabel = new JBLabel("提示: 單擊問題可查看詳情，雙擊問題可直接跳轉到代碼位置");
+        statusLabel.setForeground(UIUtil.getContextHelpForeground());
         statusPanel.add(statusLabel, BorderLayout.CENTER);
 
         // --- Final Layout ---
@@ -441,11 +463,11 @@ public class CathayBkProblemsPanel extends JPanel implements com.intellij.openap
 
                 // 設置正確的顏色
                 if (sel) {
-                    setForeground(UIManager.getColor("Tree.selectionForeground"));
-                    setBackground(UIManager.getColor("Tree.selectionBackground"));
+                    setForeground(UIUtil.getTreeSelectionForeground(hasFocus));
+                    setBackground(UIUtil.getTreeSelectionBackground(hasFocus));
                 } else {
-                    setForeground(UIManager.getColor("Tree.foreground"));
-                    setBackground(UIManager.getColor("Tree.background"));
+                    setForeground(UIUtil.getTreeForeground());
+                    setBackground(UIUtil.getTreeBackground());
                 }
 
                 // 確保背景色
@@ -496,7 +518,7 @@ public class CathayBkProblemsPanel extends JPanel implements com.intellij.openap
         });
 
         // 設置樹背景色
-        tree.setBackground(UIManager.getColor("Tree.background"));
+        tree.setBackground(UIUtil.getTreeBackground());
 
         return tree;
     }

@@ -55,80 +55,97 @@ public class AddServiceApiIdQuickFix implements LocalQuickFix {
         if (aClass == null || !aClass.isValid())
             return;
 
-        try {
-            PsiElementFactory factory = JavaPsiFacade.getElementFactory(project);
-            
-            // 生成帶有 Service 後綴的 API ID
-            String generatedApiId = this.apiId;
-            
-            // 檢查是否需要加上 Service 後綴
-            if (aClass.isInterface() && com.cathaybk.codingassistant.utils.ApiMsgIdUtil.isServiceInterface(aClass)) {
-                // Service 介面，加上 Svc 後綴
-                if (!generatedApiId.endsWith("_Svc")) {
+        final PsiClass finalAClass = aClass; // For use in lambda
+        
+        // 檢查是否在預覽模式（Preview Mode）
+        boolean isInPreviewMode = com.intellij.codeInsight.intention.preview.IntentionPreviewUtils.isPreviewElement(element);
+        
+        Runnable applyFixRunnable = () -> {
+            try {
+                PsiElementFactory factory = JavaPsiFacade.getElementFactory(project);
+                
+                // 生成帶有 Service 後綴的 API ID
+                String generatedApiId = this.apiId;
+                
+                // 先移除現有的後綴（Svc 或 SvcImpl）
+                generatedApiId = generatedApiId.replaceAll("\\s+(Svc|SvcImpl)$", "");
+                
+                // 檢查是否需要加上 Service 後綴
+                if (finalAClass.isInterface() && com.cathaybk.codingassistant.utils.ApiMsgIdUtil.isServiceInterface(finalAClass)) {
+                    // Service 介面，加上 Svc 後綴
                     generatedApiId = generatedApiId + " Svc";
-                }
-            } else if (!aClass.isInterface() && 
-                       (aClass.hasAnnotation("org.springframework.stereotype.Service") ||
-                        aClass.hasAnnotation("javax.inject.Named") ||
-                        aClass.hasAnnotation("jakarta.inject.Named"))) {
-                // Service 實現類，加上 SvcImpl 後綴
-                if (!generatedApiId.endsWith("_SvcImpl")) {
+                } else if (!finalAClass.isInterface() && 
+                           (finalAClass.hasAnnotation("org.springframework.stereotype.Service") ||
+                            finalAClass.hasAnnotation("javax.inject.Named") ||
+                            finalAClass.hasAnnotation("jakarta.inject.Named"))) {
+                    // Service 實現類，加上 SvcImpl 後綴
                     generatedApiId = generatedApiId + " SvcImpl";
                 }
-            }
-            
-            // 調試輸出
-            System.err.println("[AddServiceApiIdQuickFix] Class: " + aClass.getName() + 
-                               ", isInterface: " + aClass.isInterface() + 
-                               ", hasServiceAnnotation: " + aClass.hasAnnotation("org.springframework.stereotype.Service") +
-                               ", originalApiId: " + this.apiId +
-                               ", generatedApiId: " + generatedApiId);
-            
-            String newDocLineText = generatedApiId;
+                
+                // 調試輸出
+                System.err.println("[AddServiceApiIdQuickFix] Class: " + finalAClass.getName() + 
+                                   ", isInterface: " + finalAClass.isInterface() + 
+                                   ", hasServiceAnnotation: " + finalAClass.hasAnnotation("org.springframework.stereotype.Service") +
+                                   ", originalApiId: " + this.apiId +
+                                   ", generatedApiId: " + generatedApiId);
+                
+                String newDocLineText = generatedApiId;
 
-            PsiDocComment existingComment = aClass.getDocComment();
+                PsiDocComment existingComment = finalAClass.getDocComment();
 
-            // 從設定讀取是否要生成完整 Javadoc
-            boolean generateFull = GitSettings.getInstance(project).isGenerateFullJavadoc();
+                // 從設定讀取是否要生成完整 Javadoc
+                boolean generateFull = GitSettings.getInstance(project).isGenerateFullJavadoc();
 
-            if (existingComment == null) {
-                // --- 情況：類別完全沒有 Javadoc ---
-                // 1. 為類別創建一個包含 API ID 的 Javadoc 文本
-                // (對類別來說，完整和最小差異不大，都使用此基本模板)
-                String classJavadocText = "/**\n * " + newDocLineText + "\n */";
+                if (existingComment == null) {
+                    // --- 情況：類別完全沒有 Javadoc ---
+                    // 1. 為類別創建一個包含 API ID 的 Javadoc 文本
+                    // (對類別來說，完整和最小差異不大，都使用此基本模板)
+                    String classJavadocText = "/**\n * " + newDocLineText + "\n */";
 
-                // 2. 根據文本創建 PsiDocComment
-                PsiDocComment newComment = factory.createDocCommentFromText(classJavadocText);
+                    // 2. 根據文本創建 PsiDocComment
+                    PsiDocComment newComment = factory.createDocCommentFromText(classJavadocText);
 
-                // 3. 將新註解添加到類別前面
-                PsiModifierList modifierList = aClass.getModifierList();
-                PsiElement anchor = null;
-                if (modifierList != null && modifierList.getFirstChild() != null) {
-                    anchor = modifierList;
+                    // 3. 將新註解添加到類別前面
+                    PsiModifierList modifierList = finalAClass.getModifierList();
+                    PsiElement anchor = null;
+                    if (modifierList != null && modifierList.getFirstChild() != null) {
+                        anchor = modifierList;
+                    } else {
+                        anchor = finalAClass.getFirstChild(); // Fallback
+                    }
+                    if (anchor != null) {
+                        finalAClass.addBefore(newComment, anchor);
+                    } else {
+                        finalAClass.add(newComment); // Should not happen often
+                    }
+
+                    // 4. 格式化程式碼
+                    JavaCodeStyleManager.getInstance(project).shortenClassReferences(finalAClass);
+                    CodeStyleManager.getInstance(project).reformat(finalAClass);
+
                 } else {
-                    anchor = aClass.getFirstChild(); // Fallback
-                }
-                if (anchor != null) {
-                    aClass.addBefore(newComment, anchor);
-                } else {
-                    aClass.add(newComment); // Should not happen often
+                    // --- 情況：類別已有 Javadoc ---
+                    // 使用 JavadocUtil 處理 Javadoc 的插入或更新（保持原有邏輯）
+                    JavadocUtil.insertOrUpdateJavadoc(project, factory, finalAClass, newDocLineText);
                 }
 
-                // 4. 格式化程式碼
-                JavaCodeStyleManager.getInstance(project).shortenClassReferences(aClass);
-                CodeStyleManager.getInstance(project).reformat(aClass);
-
-            } else {
-                // --- 情況：類別已有 Javadoc ---
-                // 使用 JavadocUtil 處理 Javadoc 的插入或更新（保持原有邏輯）
-                JavadocUtil.insertOrUpdateJavadoc(project, factory, aClass, newDocLineText);
+            } catch (IncorrectOperationException e) {
+                System.err.println("應用 AddServiceApiIdQuickFix 時出錯: " + e.getMessage());
+            } catch (Exception e) {
+                System.err.println("在 AddServiceApiIdQuickFix 中生成或添加 Javadoc 時發生意外錯誤: " + e.getMessage());
+                e.printStackTrace();
             }
-
-        } catch (IncorrectOperationException e) {
-            System.err.println("應用 AddServiceApiIdQuickFix 時出錯: " + e.getMessage());
-        } catch (Exception e) {
-            System.err.println("在 AddServiceApiIdQuickFix 中生成或添加 Javadoc 時發生意外錯誤: " + e.getMessage());
-            e.printStackTrace();
+        };
+        
+        // 根據是否在預覽模式決定執行方式
+        if (isInPreviewMode) {
+            // 在預覽模式下直接執行，不使用 CommandProcessor
+            applyFixRunnable.run();
+        } else {
+            // 正常模式下使用 WriteAction 和 CommandProcessor
+            com.intellij.openapi.command.CommandProcessor.getInstance().executeCommand(project, () -> {
+                com.intellij.openapi.application.WriteAction.run(() -> applyFixRunnable.run());
+            }, getName(), null);
         }
     }
 }

@@ -23,41 +23,56 @@ import java.util.regex.Pattern;
 /**
  * API 電文代號相關的工具類 (已優化，移除不可靠的文本搜索)
  *
- * <p>本工具類提供一系列靜態方法，用於處理與 API 電文代號相關的各種 PSI 分析與操作，主要包括：</p>
+ * <p>
+ * 本工具類提供一系列靜態方法，用於處理與 API 電文代號相關的各種 PSI 分析與操作，主要包括：
+ * </p>
  * <ul>
- *     <li>識別 Controller、Service、API 方法等特定類型的程式碼元素。</li>
- *     <li>驗證 Javadoc 中是否存在符合規範格式的電文代號。</li>
- *     <li>提取或生成電文代號字串。</li>
- *     <li>基於 PSI 分析，查找 Service 類與使用它的 Controller API 方法之間的關聯，並提取 Controller 的電文代號。</li>
- *     <li>為 Service 類查找最相關的電文代號來源（自身、實現類、接口或關聯的 Controller）。</li>
+ * <li>識別 Controller、Service、API 方法等特定類型的程式碼元素。</li>
+ * <li>驗證 Javadoc 中是否存在符合規範格式的電文代號。</li>
+ * <li>提取或生成電文代號字串。</li>
+ * <li>基於 PSI 分析，查找 Service 類與使用它的 Controller API 方法之間的關聯，並提取 Controller
+ * 的電文代號。</li>
+ * <li>為 Service 類查找最相關的電文代號來源（自身、實現類、接口或關聯的 Controller）。</li>
  * </ul>
- * <p>所有查找和關聯分析均基於 IntelliJ Platform 的 PSI API，避免了不可靠的文本搜索。</p>
+ * <p>
+ * 所有查找和關聯分析均基於 IntelliJ Platform 的 PSI API，避免了不可靠的文本搜索。
+ * </p>
  */
 public class ApiMsgIdUtil {
 
     /**
      * 電文代號的正規表示式模式。
-     * <p>用於匹配 Javadoc 中符合 "ID 描述" 格式的字串。</p>
-     * <p>格式要求：</p>
+     * <p>
+     * 用於匹配 Javadoc 中符合 "ID 描述" 格式的字串。
+     * </p>
+     * <p>
+     * 格式要求：
+     * </p>
      * <ul>
-     *     <li>ID 部分由至少一個字母數字區段構成。</li>
-     *     <li>後續可以跟隨一個或多個由連字號'-'連接的字母數字區段。</li>
-     *     <li>ID 部分之後必須跟隨至少一個空白字符。</li>
-     *     <li>空白字符之後必須跟隨至少一個任意字符作為描述文字。</li>
+     * <li>ID 部分由至少一個字母數字區段構成。</li>
+     * <li>後續可以跟隨一個或多個由連字號'-'連接的字母數字區段。</li>
+     * <li>ID 部分之後必須跟隨至少一個空白字符。</li>
+     * <li>空白字符之後必須跟隨至少一個任意字符作為描述文字。</li>
      * </ul>
-     * <p>範例：</p>
+     * <p>
+     * 範例：
+     * </p>
      * <ul>
-     *     <li>`API-LOGIN 使用者登入`</li>
-     *     <li>`SYS-AUTH-VALIDATE 權限驗證`</li>
+     * <li>`API-LOGIN 使用者登入`</li>
+     * <li>`SYS-AUTH-VALIDATE 權限驗證`</li>
      * </ul>
-     * <p>捕獲組 1 包含完整的 "ID 描述" 字串。</p>
+     * <p>
+     * 捕獲組 1 包含完整的 "ID 描述" 字串。
+     * </p>
      */
     public static final Pattern API_ID_PATTERN = Pattern.compile("([A-Za-z0-9]+(?:-[A-Za-z0-9]+)+\\s+.+)");
 
     /**
      * 判斷一個方法是否為 Spring Web API 方法。
-     * <p>檢查方法是否帶有任何以 "Mapping" 結尾的標準 Spring Web 註解
-     * (例如 `@RequestMapping`, `@GetMapping` 等)。</p>
+     * <p>
+     * 檢查方法是否帶有任何以 "Mapping" 結尾的標準 Spring Web 註解
+     * (例如 `@RequestMapping`, `@GetMapping` 等)。
+     * </p>
      *
      * @param method 要檢查的 {@link PsiMethod} 物件。
      * @return 如果方法被識別為 API 方法，則返回 {@code true}；否則返回 {@code false}。
@@ -74,13 +89,18 @@ public class ApiMsgIdUtil {
 
     /**
      * 判斷一個類別是否為 Controller 類別。
-     * <p>判斷依據按以下優先順序（滿足其一即可）：</p>
+     * <p>
+     * 判斷依據按以下優先順序（滿足其一即可）：
+     * </p>
      * <ol>
-     *     <li>是否帶有標準 Spring 註解 {@code @Controller} 或 {@code @RestController} (最可靠)。</li>
-     *     <li>類別名稱是否以 "Controller" 結尾 (忽略大小寫，較可靠的命名慣例)。</li>
-     *     <li>類別所在的套件名稱是否包含精確的 "controller" 區段 (較不可靠的包結構慣例)。</li>
+     * <li>是否帶有標準 Spring 註解 {@code @Controller} 或 {@code @RestController}
+     * (最可靠)。</li>
+     * <li>類別名稱是否以 "Controller" 結尾 (忽略大小寫，較可靠的命名慣例)。</li>
+     * <li>類別所在的套件名稱是否包含精確的 "controller" 區段 (較不可靠的包結構慣例)。</li>
      * </ol>
-     * <p>注意：此方法不檢查接口、註解類型或枚舉。</p>
+     * <p>
+     * 注意：此方法不檢查接口、註解類型或枚舉。
+     * </p>
      *
      * @param psiClass 要檢查的 {@link PsiClass} 物件。
      * @return 如果類別被識別為 Controller，則返回 {@code true}；否則返回 {@code false}。
@@ -121,11 +141,13 @@ public class ApiMsgIdUtil {
 
     /**
      * 判斷一個類別是否為 Service 介面。
-     * <p>判斷依據按以下優先順序（滿足其一即可）：</p>
+     * <p>
+     * 判斷依據按以下優先順序（滿足其一即可）：
+     * </p>
      * <ol>
-     *     <li>是否為介面。</li>
-     *     <li>類別名稱是否以 "Service" 或 "Svc" 結尾 (忽略大小寫，較可靠的命名慣例)。</li>
-     *     <li>類別所在的套件名稱是否包含精確的 "service" 或 "svc" 區段 (較可靠的包結構慣例)。</li>
+     * <li>是否為介面。</li>
+     * <li>類別名稱是否以 "Service" 或 "Svc" 結尾 (忽略大小寫，較可靠的命名慣例)。</li>
+     * <li>類別所在的套件名稱是否包含精確的 "service" 或 "svc" 區段 (較可靠的包結構慣例)。</li>
      * </ol>
      *
      * @param psiClass 要檢查的 {@link PsiClass} 物件。
@@ -162,15 +184,19 @@ public class ApiMsgIdUtil {
         return false;
     }
 
-
     /**
      * 判斷一個類別是否為 Service 實現類別。
-     * <p>判斷依據按以下優先順序（滿足其一即可）：</p>
+     * <p>
+     * 判斷依據按以下優先順序（滿足其一即可）：
+     * </p>
      * <ol>
-     *     <li>是否帶有標準 Spring 註解 {@code @Service} (最可靠)。</li>
-     *     <li>類別名稱是否以 "Impl" 結尾 (忽略大小寫)，並且它直接實現了至少一個被 {@link #isServiceInterface} 識別的介面。</li>
+     * <li>是否帶有標準 Spring 註解 {@code @Service} (最可靠)。</li>
+     * <li>類別名稱是否以 "Impl" 結尾 (忽略大小寫)，並且它直接實現了至少一個被 {@link #isServiceInterface}
+     * 識別的介面。</li>
      * </ol>
-     * <p>注意：此方法不檢查接口、註解類型或枚舉。</p>
+     * <p>
+     * 注意：此方法不檢查接口、註解類型或枚舉。
+     * </p>
      *
      * @param psiClass 要檢查的 {@link PsiClass} 物件。
      * @return 如果類別被識別為 Service 實現類，則返回 {@code true}；否則返回 {@code false}。
@@ -206,17 +232,21 @@ public class ApiMsgIdUtil {
      */
     public static boolean isServiceClass(@Nullable PsiClass psiClass) {
         // 稍微優化，避免重複計算 isServiceInterface
-        if (psiClass == null) return false;
+        if (psiClass == null)
+            return false;
         // isServiceInterface 內部已經判斷了是否為接口，isServiceImpl 判斷了不是接口
         return isServiceInterface(psiClass) || isServiceImpl(psiClass);
     }
 
     /**
      * 檢查指定的 Javadoc 註解中是否包含符合 {@link #API_ID_PATTERN} 格式的電文代號。
-     * <p>此方法會檢查 Javadoc 的完整文本內容。</p>
+     * <p>
+     * 此方法會檢查 Javadoc 的完整文本內容。
+     * </p>
      *
      * @param docComment 要檢查的 {@link PsiDocComment} 物件，可以為 {@code null}。
-     * @return 如果 Javadoc 不為 {@code null} 且包含有效的電文代號格式，則返回 {@code true}；否則返回 {@code false}。
+     * @return 如果 Javadoc 不為 {@code null} 且包含有效的電文代號格式，則返回 {@code true}；否則返回
+     *         {@code false}。
      */
     public static boolean hasValidApiMsgId(@Nullable PsiDocComment docComment) {
         if (docComment == null) {
@@ -228,7 +258,9 @@ public class ApiMsgIdUtil {
 
     /**
      * 從給定的 Javadoc 註解中提取第一個匹配 {@link #API_ID_PATTERN} 的電文代號字串。
-     * <p>提取的結果包含 ID 和後續的描述文字，並去除首尾空白。</p>
+     * <p>
+     * 提取的結果包含 ID 和後續的描述文字，並去除首尾空白。
+     * </p>
      *
      * @param docComment 要從中提取的 {@link PsiDocComment} 物件，可以為 {@code null}。
      * @return 如果找到匹配的電文代號字串，則返回該字串；否則返回 {@code null}。
@@ -247,14 +279,22 @@ public class ApiMsgIdUtil {
         return null;
     }
 
-
     /**
      * 為指定的 Controller API 方法生成一個建議的電文代號模板字串。
-     * <p>模板格式為 "API-<類名簡寫>_<方法名大寫>"。</p>
-     * <p>類名簡寫會移除 "Controller" 字樣（不區分大小寫）並轉為大寫。</p>
-     * <p>例如：`UserController` 的 `login` 方法會生成 "API-USER_LOGIN"。</p>
+     * <p>
+     * 模板格式為 "API-<類名簡寫>_<方法名大寫>_<後綴>"。
+     * </p>
+     * <p>
+     * 類名簡寫會移除 "Controller" 字樣（不區分大小寫）並轉為大寫。
+     * </p>
+     * <p>
+     * 例如：`UserController` 的 `login` 方法會生成 "API-USER_LOGIN"。
+     * </p>
+     * <p>
+     * Service 類別會自動加上 "Svc" 或 "SvcImpl" 後綴。
+     * </p>
      *
-     * @param method 要為其生成模板的 Controller {@link PsiMethod} 物件。
+     * @param method 要為其生成模板的 {@link PsiMethod} 物件。
      * @return 生成的電文代號模板字串。
      */
     @NotNull
@@ -267,19 +307,20 @@ public class ApiMsgIdUtil {
             if (className != null) {
                 // 簡化判斷邏輯
                 if (containingClass.isInterface() && isServiceInterface(containingClass)) {
-                    // Service 介面，移除 "Service"，加上 "Svc" 後綴
-                    classNameAbbr = className.replaceAll("(?i)Service", "").toUpperCase();
+                    // Service 介面，移除 "Service" 或 "Svc"，加上 "Svc" 後綴
+                    classNameAbbr = className.replaceAll("(?i)(Service|Svc)$", "").toUpperCase();
                     suffix = "Svc";
-                } else if (!containingClass.isInterface() && 
-                           (containingClass.hasAnnotation("org.springframework.stereotype.Service") ||
-                            containingClass.hasAnnotation("javax.inject.Named") ||
-                            containingClass.hasAnnotation("jakarta.inject.Named"))) {
+                } else if (!containingClass.isInterface() &&
+                        (containingClass.hasAnnotation("org.springframework.stereotype.Service") ||
+                                containingClass.hasAnnotation("javax.inject.Named") ||
+                                containingClass.hasAnnotation("jakarta.inject.Named"))) {
                     // 實作類且有 Service 相關註解，加上 "SvcImpl" 後綴
-                    classNameAbbr = className.replaceAll("(?i)(Service)?Impl", "").toUpperCase();
+                    // 移除可能存在的 "Service", "Impl", "Svc", "SvcImpl" 後綴
+                    classNameAbbr = className.replaceAll("(?i)(Service|Impl|SvcImpl|Svc)$", "").toUpperCase();
                     suffix = "SvcImpl";
                 } else if (isControllerClass(containingClass)) {
                     // Controller 類別，移除 "Controller"
-                    classNameAbbr = className.replaceAll("(?i)Controller", "").toUpperCase();
+                    classNameAbbr = className.replaceAll("(?i)Controller$", "").toUpperCase();
                 } else {
                     // 其他類別，保持原類名
                     classNameAbbr = className.toUpperCase();
@@ -289,23 +330,12 @@ public class ApiMsgIdUtil {
 
         String methodNameUpper = method.getName().toUpperCase();
         // 處理類名簡寫為空的情況
-        String baseId = "API-" + (StringUtils.isEmpty(classNameAbbr) ? "UNKNOWN" : classNameAbbr) + "_" + methodNameUpper;
-        
+        String baseId = "API-" + (StringUtils.isEmpty(classNameAbbr) ? "UNKNOWN" : classNameAbbr) + "_"
+                + methodNameUpper;
+
         // 加上 Service 後綴（如果有的話）
         String result = StringUtils.isEmpty(suffix) ? baseId : baseId + "_" + suffix;
-        
-        // 輸出調試訊息到 IntelliJ 的 Event Log
-        if (containingClass != null) {
-            String debugMsg = "[ApiMsgIdUtil] Class: " + containingClass.getName() + 
-                               ", isInterface: " + containingClass.isInterface() + 
-                               ", hasServiceAnnotation: " + containingClass.hasAnnotation("org.springframework.stereotype.Service") +
-                               ", suffix: " + suffix +
-                               ", result: " + result;
-            System.out.println(debugMsg);
-            // 同時寫入到錯誤日誌，這樣更容易看到
-            System.err.println(debugMsg);
-        }
-        
+
         return result;
     }
 
@@ -322,19 +352,56 @@ public class ApiMsgIdUtil {
     public static String generateServiceApiMsgId(@NotNull PsiMethod method) {
         return generateApiMsgId(method); // 現在 generateApiMsgId 已經支援 Service 後綴
     }
-    
+
+    /**
+     * 清理電文代號中可能重複的後綴
+     * 例如："API-USER_LOGIN_SvcImpl Svc" -> "API-USER_LOGIN_SvcImpl"
+     * 
+     * @param apiMsgId 原始的電文代號
+     * @return 清理後的電文代號
+     */
+    @NotNull
+    public static String cleanupApiMsgIdSuffix(@NotNull String apiMsgId) {
+        // 移除可能重複的後綴
+        // 例如："SvcImpl Svc" -> 只保留 "SvcImpl"
+        // 或 "Svc SvcImpl" -> 只保留 "SvcImpl"
+        String cleaned = apiMsgId;
+
+        // 如果同時包含 SvcImpl 和 Svc，只保留 SvcImpl
+        if (cleaned.contains("SvcImpl") && cleaned.contains(" Svc")) {
+            cleaned = cleaned.replaceAll(" Svc\\b", "");
+        }
+
+        // 如果有重複的 SvcImpl
+        cleaned = cleaned.replaceAll("(SvcImpl)( SvcImpl)+", "$1");
+
+        // 如果有重複的 Svc
+        cleaned = cleaned.replaceAll("(Svc)( Svc)+", "$1");
+
+        return cleaned.trim();
+    }
+
     /**
      * 查找所有使用了指定 Service 類別或其接口的 Controller API 方法，並提取這些 Controller 方法的電文代號。
-     * <p>此方法完全基於 PSI 分析，不再依賴不可靠的文本搜索。</p>
-     * <p>搜索過程：</p>
+     * <p>
+     * 此方法完全基於 PSI 分析，不再依賴不可靠的文本搜索。
+     * </p>
+     * <p>
+     * 搜索過程：
+     * </p>
      * <ol>
-     *     <li>使用 {@link ReferencesSearch} 在 {@code serviceOrInterfaceClass} 的使用範圍 (use scope) 內查找所有直接引用。</li>
-     *     <li>透過 {@link #checkReferences} 檢查每個引用，判斷其上下文。</li>
-     *     <li>如果引用最終指向了一個 Controller 類別中的 API 方法，並且該方法體內確實有對 {@code serviceOrInterfaceClass} 兼容類型實例的使用 (透過 {@link #checkMethodBodyForServiceUsage} 驗證)，則嘗試從該 Controller 方法的 Javadoc 中提取電文代號。</li>
+     * <li>使用 {@link ReferencesSearch} 在 {@code serviceOrInterfaceClass} 的使用範圍 (use
+     * scope) 內查找所有直接引用。</li>
+     * <li>透過 {@link #checkReferences} 檢查每個引用，判斷其上下文。</li>
+     * <li>如果引用最終指向了一個 Controller 類別中的 API 方法，並且該方法體內確實有對
+     * {@code serviceOrInterfaceClass} 兼容類型實例的使用 (透過
+     * {@link #checkMethodBodyForServiceUsage} 驗證)，則嘗試從該 Controller 方法的 Javadoc
+     * 中提取電文代號。</li>
      * </ol>
      *
      * @param serviceOrInterfaceClass 要查找其使用的 Service 類別或接口 ({@link PsiClass})。
-     * @return 一個 Map，其中 Key 是找到的 Controller 方法的名稱 (String)，Value 是從該方法 Javadoc 中提取的電文代號字串 (String)。如果找不到任何符合條件的 Controller 方法或它們沒有電文代號，則返回空的 Map。
+     * @return 一個 Map，其中 Key 是找到的 Controller 方法的名稱 (String)，Value 是從該方法 Javadoc
+     *         中提取的電文代號字串 (String)。如果找不到任何符合條件的 Controller 方法或它們沒有電文代號，則返回空的 Map。
      */
     @NotNull
     public static Map<String, String> findControllerApiIds(@NotNull PsiClass serviceOrInterfaceClass) {
@@ -354,31 +421,38 @@ public class ApiMsgIdUtil {
 
         } catch (Exception e) {
             // 實際應用中應使用日誌框架
-            System.err.println("查找 Controller API ID 時出錯，類: " + serviceOrInterfaceClass.getName() + ", 錯誤: " + e.getMessage());
+            System.err.println(
+                    "查找 Controller API ID 時出錯，類: " + serviceOrInterfaceClass.getName() + ", 錯誤: " + e.getMessage());
         }
         return result;
     }
 
     /**
      * 輔助方法：檢查給定的類別引用集合，找出其中與 Controller API 方法相關聯的引用。
-     * <p>對每個引用，判斷其上下文：</p>
+     * <p>
+     * 對每個引用，判斷其上下文：
+     * </p>
      * <ol>
-     *     <li>如果引用直接位於某方法內，檢查該方法。</li>
-     *     <li>如果引用指向一個變數，則查找該變數的所有使用點，並檢查使用點所在的方法。</li>
+     * <li>如果引用直接位於某方法內，檢查該方法。</li>
+     * <li>如果引用指向一個變數，則查找該變數的所有使用點，並檢查使用點所在的方法。</li>
      * </ol>
-     * <p>使用 {@code checkedMethods} 避免重複處理同一個方法。</p>
+     * <p>
+     * 使用 {@code checkedMethods} 避免重複處理同一個方法。
+     * </p>
      *
      * @param references  對 {@code targetClass} 的引用集合。
-     * @param targetClass 被引用的目標類別 (接口或實現類)，傳遞給 {@link #checkControllerMethod} 用於 usage 檢查。
+     * @param targetClass 被引用的目標類別 (接口或實現類)，傳遞給 {@link #checkControllerMethod} 用於
+     *                    usage 檢查。
      * @param result      用於存放結果的 Map (方法名 -> 電文代號)。
      */
     private static void checkReferences(@NotNull Collection<PsiReference> references, @NotNull PsiClass targetClass,
-                                        @NotNull Map<String, String> result) {
+            @NotNull Map<String, String> result) {
         Set<PsiMethod> checkedMethods = new HashSet<>();
 
         for (PsiReference reference : references) {
             PsiElement element = reference.getElement();
-            if (element == null) continue;
+            if (element == null)
+                continue;
 
             // 情況 A: 引用直接出現在方法體內
             PsiMethod containingMethod = PsiTreeUtil.getParentOfType(element, PsiMethod.class, false);
@@ -398,10 +472,12 @@ public class ApiMsgIdUtil {
 
             if (variable != null) {
                 // 查找這個 *變數* 在哪裡被 *使用* 了
-                Collection<PsiReference> variableReferences = ReferencesSearch.search(variable, variable.getUseScope()).findAll();
+                Collection<PsiReference> variableReferences = ReferencesSearch.search(variable, variable.getUseScope())
+                        .findAll();
                 for (PsiReference varRef : variableReferences) {
                     PsiElement usageElement = varRef.getElement();
-                    if (usageElement == null) continue;
+                    if (usageElement == null)
+                        continue;
                     // 查找變數使用點所在的方法
                     PsiMethod usageMethod = PsiTreeUtil.getParentOfType(usageElement, PsiMethod.class, false);
                     if (usageMethod != null && checkedMethods.add(usageMethod)) {
@@ -418,18 +494,19 @@ public class ApiMsgIdUtil {
      * 並提取其電文代號。
      *
      * @param method                  要檢查的 {@link PsiMethod}。
-     * @param serviceOrInterfaceClass 目標 Service 類型 (接口或實現類)，用於 {@link #checkMethodBodyForServiceUsage}。
+     * @param serviceOrInterfaceClass 目標 Service 類型 (接口或實現類)，用於
+     *                                {@link #checkMethodBodyForServiceUsage}。
      * @param result                  用於存放結果的 Map (方法名 -> 電文代號)。
      */
     private static void checkControllerMethod(@NotNull PsiMethod method, @NotNull PsiClass serviceOrInterfaceClass,
-                                              @NotNull Map<String, String> result) {
+            @NotNull Map<String, String> result) {
         // 1. 驗證方法是否為 Controller 中的 API 方法
         if (!isApiMethod(method) || !isControllerClass(method.getContainingClass())) {
             return;
         }
 
         // 2. 驗證方法體內是否實際使用了 serviceOrInterfaceClass 的實例
-        //    即使 Controller 注入的是接口，如果實際運行時使用的是實現類，這個檢查也能通過
+        // 即使 Controller 注入的是接口，如果實際運行時使用的是實現類，這個檢查也能通過
         if (!checkMethodBodyForServiceUsage(method, serviceOrInterfaceClass)) {
             return;
         }
@@ -443,11 +520,14 @@ public class ApiMsgIdUtil {
 
     /**
      * 核心檢查邏輯：使用 PSI Visitor 遍歷方法體，判斷是否實際使用了指定 {@code targetClass} 兼容類型的實例。
-     * <p>主要檢查方法體內是否存在對 {@code targetClass} 或其子類/實現類實例的方法調用。</p>
+     * <p>
+     * 主要檢查方法體內是否存在對 {@code targetClass} 或其子類/實現類實例的方法調用。
+     * </p>
      *
      * @param method      要檢查的 {@link PsiMethod}。
      * @param targetClass 要檢查是否被使用的目標類 (接口或實現類) {@link PsiClass}。
-     * @return 如果方法體內找到對 {@code targetClass} 兼容類型實例的有效使用（通常是方法調用），則返回 {@code true}；否則返回 {@code false}。
+     * @return 如果方法體內找到對 {@code targetClass} 兼容類型實例的有效使用（通常是方法調用），則返回
+     *         {@code true}；否則返回 {@code false}。
      */
     private static boolean checkMethodBodyForServiceUsage(@NotNull PsiMethod method, @NotNull PsiClass targetClass) {
         PsiCodeBlock body = method.getBody();
@@ -476,7 +556,8 @@ public class ApiMsgIdUtil {
                 if (qualifierType != null) {
                     PsiClass qualifierClass = PsiUtil.resolveClassInType(qualifierType);
                     // 檢查 qualifier 的類型是否是 targetClass 或其子類/實現類
-                    if (qualifierClass != null && InheritanceUtil.isInheritorOrSelf(qualifierClass, targetClass, true)) {
+                    if (qualifierClass != null
+                            && InheritanceUtil.isInheritorOrSelf(qualifierClass, targetClass, true)) {
                         usageFound.set(true);
                         stopWalking();
                     }
@@ -485,7 +566,8 @@ public class ApiMsgIdUtil {
                     if (resolved instanceof PsiVariable) {
                         PsiType variableType = ((PsiVariable) resolved).getType();
                         PsiClass variableClass = PsiUtil.resolveClassInType(variableType);
-                        if (variableClass != null && InheritanceUtil.isInheritorOrSelf(variableClass, targetClass, true)) {
+                        if (variableClass != null
+                                && InheritanceUtil.isInheritorOrSelf(variableClass, targetClass, true)) {
                             usageFound.set(true);
                             stopWalking();
                         }
@@ -496,21 +578,30 @@ public class ApiMsgIdUtil {
         return usageFound.get();
     }
 
-
     /**
      * 為給定的 Service 類別（接口或實現類）查找最相關的一個電文代號來源。
-     * <p>查找遵循以下固定順序，找到第一個有效的電文代號即返回：</p>
+     * <p>
+     * 查找遵循以下固定順序，找到第一個有效的電文代號即返回：
+     * </p>
      * <ol>
-     *     <li>檢查 {@code serviceClass} 自身的 Javadoc。</li>
-     *     <li>如果是接口 (Interface)，則查找其所有**直接或間接實現類**中，第一個帶有有效電文代號的 Service 實現類 ({@link #isServiceImpl}) 的 Javadoc。</li>
-     *     <li>如果是實現類 (Impl)，則查找其所有**直接實現的接口**中，第一個帶有有效電文代號的 Service 接口 ({@link #isServiceInterface}) 的 Javadoc。</li>
-     *     <li>**針對 Service 實現類：** 如果前序步驟未找到 ID，則遍歷其實現的 Service 接口，對**每個接口**呼叫 {@link #findControllerApiIds(PsiClass)} 查找使用該**接口**的 Controller，找到第一個即返回。</li>
-     *     <li>如果 {@code serviceClass} 是接口且前序步驟未找到，**或者** {@code serviceClass} 是實現類且以上所有步驟都未找到，則最後嘗試基於 {@code serviceClass} 本身查找使用它的 Controller。</li>
+     * <li>檢查 {@code serviceClass} 自身的 Javadoc。</li>
+     * <li>如果是接口 (Interface)，則查找其所有**直接或間接實現類**中，第一個帶有有效電文代號的 Service 實現類
+     * ({@link #isServiceImpl}) 的 Javadoc。</li>
+     * <li>如果是實現類 (Impl)，則查找其所有**直接實現的接口**中，第一個帶有有效電文代號的 Service 接口
+     * ({@link #isServiceInterface}) 的 Javadoc。</li>
+     * <li>**針對 Service 實現類：** 如果前序步驟未找到 ID，則遍歷其實現的 Service 接口，對**每個接口**呼叫
+     * {@link #findControllerApiIds(PsiClass)} 查找使用該**接口**的
+     * Controller，找到第一個即返回。</li>
+     * <li>如果 {@code serviceClass} 是接口且前序步驟未找到，**或者** {@code serviceClass}
+     * 是實現類且以上所有步驟都未找到，則最後嘗試基於 {@code serviceClass} 本身查找使用它的 Controller。</li>
      * </ol>
-     * <p><b>注意:</b> 此方法設計為只返回單個最相關的來源。</p>
+     * <p>
+     * <b>注意:</b> 此方法設計為只返回單個最相關的來源。
+     * </p>
      *
      * @param serviceClass 要查找電文代號來源的 Service {@link PsiClass}。
-     * @return 一個 Map，其中 Key 是找到的電文代號的來源名稱 (類名或方法名)，Value 是電文代號字串。如果按上述順序未找到任何來源，則返回空的 Map。返回的 Map 最多只包含一個條目。
+     * @return 一個 Map，其中 Key 是找到的電文代號的來源名稱 (類名或方法名)，Value
+     *         是電文代號字串。如果按上述順序未找到任何來源，則返回空的 Map。返回的 Map 最多只包含一個條目。
      */
     @NotNull
     public static Map<String, String> findApiIdsForServiceClass(@NotNull PsiClass serviceClass) {
@@ -574,7 +665,7 @@ public class ApiMsgIdUtil {
         }
 
         // 5. 最後手段：如果前面都沒找到 ID，嘗試基於 serviceClass 本身查找 Controller
-        //    (對接口來說是主要查找 Controller 路徑，對實現類是最後補救)
+        // (對接口來說是主要查找 Controller 路徑，對實現類是最後補救)
         Map<String, String> controllerApiIds = findControllerApiIds(serviceClass);
         if (!controllerApiIds.isEmpty()) {
             Map.Entry<String, String> firstEntry = controllerApiIds.entrySet().iterator().next();
@@ -593,8 +684,9 @@ public class ApiMsgIdUtil {
      * </p>
      *
      * @param controllerMethod 要分析的 Controller {@link PsiMethod}。
-     * @return 一個 Map，Key 是找到的電文代號的來源名稱 (例如，"UserServiceImpl" 或 "anotherControllerMethod")，
-     * Value 是對應的電文代號字串。如果方法體內沒有使用 Service，或者使用的 Service 沒有關聯的電文代號，則返回空 Map。
+     * @return 一個 Map，Key 是找到的電文代號的來源名稱 (例如，"UserServiceImpl" 或
+     *         "anotherControllerMethod")，
+     *         Value 是對應的電文代號字串。如果方法體內沒有使用 Service，或者使用的 Service 沒有關聯的電文代號，則返回空 Map。
      */
     @NotNull
     public static Map<String, String> findAndSuggestApiIdsFromUsedServices(@NotNull PsiMethod controllerMethod) {
@@ -622,7 +714,8 @@ public class ApiMsgIdUtil {
                     // 可能是 this.method() 或 靜態方法調用，或者方法在同一個類中
                     // 如果需要處理 this.service.method() 的情況，需要進一步分析 qualifier
                     // 如果是 this 調用，嘗試獲取 containing class
-                    if (expression.getMethodExpression().getQualifier() == null || expression.getMethodExpression().getQualifier() instanceof PsiThisExpression) {
+                    if (expression.getMethodExpression().getQualifier() == null
+                            || expression.getMethodExpression().getQualifier() instanceof PsiThisExpression) {
                         PsiMethod resolvedMethod = expression.resolveMethod();
                         if (resolvedMethod != null) {
                             PsiClass containingClass = resolvedMethod.getContainingClass();
@@ -643,7 +736,9 @@ public class ApiMsgIdUtil {
                             && processedServiceClasses.add(qualifierClass)) { // add() 成功表示是第一次遇到
 
                         // 為這個找到的 Service 類查找關聯的電文代號
-                        Map<String, String> apiIds = ApiMsgIdUtil.findApiIdsForServiceClass(qualifierClass); // 使用 ApiMsgIdUtil 的方法
+                        Map<String, String> apiIds = ApiMsgIdUtil.findApiIdsForServiceClass(qualifierClass); // 使用
+                                                                                                             // ApiMsgIdUtil
+                                                                                                             // 的方法
                         // 將找到的結果合併到總結果中
                         allFoundApiIds.putAll(apiIds);
                     }
@@ -657,7 +752,9 @@ public class ApiMsgIdUtil {
                                 && ApiMsgIdUtil.isServiceClass(variableClass) // 使用 ApiMsgIdUtil 的方法
                                 && processedServiceClasses.add(variableClass)) {
 
-                            Map<String, String> apiIds = ApiMsgIdUtil.findApiIdsForServiceClass(variableClass); // 使用 ApiMsgIdUtil 的方法
+                            Map<String, String> apiIds = ApiMsgIdUtil.findApiIdsForServiceClass(variableClass); // 使用
+                                                                                                                // ApiMsgIdUtil
+                                                                                                                // 的方法
                             allFoundApiIds.putAll(apiIds);
                         }
                     }
@@ -667,10 +764,10 @@ public class ApiMsgIdUtil {
 
             // 可以考慮也訪問字段引用、變數聲明等，以處理更複雜的 Service 使用方式
             // 例如： private final UserService userService; (注入的字段)
-            //        ...
-            //        userService.doSomething();
+            // ...
+            // userService.doSomething();
             // 或者： UserService localService = getService(); (方法返回 Service)
-            //        localService.doAnother();
+            // localService.doAnother();
 
             // 訪問變數聲明，檢查類型是否為 Service
             @Override
@@ -681,11 +778,13 @@ public class ApiMsgIdUtil {
                         PsiLocalVariable localVar = (PsiLocalVariable) declaredElement;
                         PsiType varType = localVar.getType();
                         PsiClass varClass = PsiUtil.resolveClassInType(varType);
-                        if (varClass != null && ApiMsgIdUtil.isServiceClass(varClass) && processedServiceClasses.add(varClass)) {
+                        if (varClass != null && ApiMsgIdUtil.isServiceClass(varClass)
+                                && processedServiceClasses.add(varClass)) {
                             // 這個 Service 類被聲明了，我們也查找它的 ID
                             // 這可能有點過度查找，因為聲明不代表一定被使用
                             // 但如果 Controller 方法很複雜，這可能是一種補充
-                            // Map<String, String> apiIds = ApiMsgIdUtil.findApiIdsForServiceClass(varClass);
+                            // Map<String, String> apiIds =
+                            // ApiMsgIdUtil.findApiIdsForServiceClass(varClass);
                             // allFoundApiIds.putAll(apiIds);
                         }
                     }

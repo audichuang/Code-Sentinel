@@ -13,14 +13,18 @@ import com.intellij.psi.javadoc.PsiDocComment;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import com.cathaybk.codingassistant.settings.GitSettings;
+import com.intellij.openapi.application.WriteAction;
+import com.intellij.openapi.command.CommandProcessor;
+import com.intellij.openapi.diagnostic.Logger;
 
 /**
  * 為缺少電文代號的 API 方法提供添加 Javadoc 註解的快速修復。
  * 如果方法沒有 Javadoc，則生成完整結構；否則，更新現有 Javadoc。
  */
 public class AddApiIdDocFix implements LocalQuickFix {
-
+    private static final Logger LOG = Logger.getInstance(AddApiIdDocFix.class);
     private static final String TODO_DESCRIPTION = "[請填寫API描述]";
 
     @NotNull
@@ -41,12 +45,19 @@ public class AddApiIdDocFix implements LocalQuickFix {
         if (!(element instanceof PsiIdentifier) && !(element instanceof PsiMethod)) {
             return;
         }
+        
+        @Nullable
         PsiMethod method = (element instanceof PsiMethod) ? (PsiMethod) element
                 : PsiTreeUtil.getParentOfType(element, PsiMethod.class);
-        if (method == null || !method.isValid())
+        if (method == null || !method.isValid()) {
             return;
+        }
 
-        try {
+        // 檢查是否在預覽模式（Preview Mode）
+        boolean isInPreviewMode = com.intellij.codeInsight.intention.preview.IntentionPreviewUtils.isPreviewElement(element);
+        
+        Runnable applyFixRunnable = () -> {
+                try {
             PsiElementFactory factory = JavaPsiFacade.getElementFactory(project);
             String apiIdTemplate = ApiMsgIdUtil.generateApiMsgId(method);
             String newDocLineText = apiIdTemplate + " " + TODO_DESCRIPTION;
@@ -105,11 +116,22 @@ public class AddApiIdDocFix implements LocalQuickFix {
                 JavadocUtil.insertOrUpdateJavadoc(project, factory, method, newDocLineText);
             }
 
-        } catch (IncorrectOperationException e) {
-            System.err.println("應用 AddApiIdDocFix 時出錯: " + e.getMessage());
-        } catch (Exception e) {
-            System.err.println("在 AddApiIdDocFix 中生成或添加 Javadoc 時發生意外錯誤: " + e.getMessage());
-            e.printStackTrace();
+                } catch (IncorrectOperationException e) {
+                    LOG.error("應用 AddApiIdDocFix 時出錯", e);
+                } catch (Exception e) {
+                    LOG.error("在 AddApiIdDocFix 中生成或添加 Javadoc 時發生意外錯誤", e);
+                }
+        };
+        
+        // 根據是否在預覽模式決定執行方式
+        if (isInPreviewMode) {
+            // 在預覽模式下直接執行，不使用 CommandProcessor
+            applyFixRunnable.run();
+        } else {
+            // 正常模式下使用 WriteAction 和 CommandProcessor
+            CommandProcessor.getInstance().executeCommand(project, () -> {
+                WriteAction.run(() -> applyFixRunnable.run());
+            }, getName(), null);
         }
     }
 }

@@ -65,34 +65,50 @@ public class AddFieldJavadocFix implements LocalQuickFix, PriorityAction {
             return; // 找不到欄位或欄位無效
         }
 
-        // 檢查是否已經存在 Javadoc (雖然檢查器應該已經過濾，但這裡做個保險)
-        if (field.getDocComment() != null) {
-            return;
-        }
+        // 檢查是否在預覽模式（Preview Mode）
+        boolean isInPreviewMode = com.intellij.codeInsight.intention.preview.IntentionPreviewUtils.isPreviewElement(element);
+        
+        Runnable applyFixRunnable = () -> {
+                // 檢查是否已經存在 Javadoc (雖然檢查器應該已經過濾，但這裡做個保險)
+                if (field.getDocComment() != null) {
+                    return;
+                }
 
-        try {
-            // 獲取 PSI 元素工廠
-            PsiElementFactory factory = JavaPsiFacade.getElementFactory(project);
+                try {
+                    // 獲取 PSI 元素工廠
+                    PsiElementFactory factory = JavaPsiFacade.getElementFactory(project);
 
-            // 構建 Javadoc 文本
-            String javadocText = "/** " + this.fieldTypeName + " */";
+                    // 構建 Javadoc 文本
+                    String javadocText = "/** " + this.fieldTypeName + " */";
 
-            // 創建 PsiDocComment 對象
-            PsiDocComment newDocComment = factory.createDocCommentFromText(javadocText);
+                    // 創建 PsiDocComment 對象
+                    PsiDocComment newDocComment = factory.createDocCommentFromText(javadocText);
 
-            // 將新的 Javadoc 添加到欄位之前
-            PsiElement addedElement = field.addBefore(newDocComment, field.getFirstChild());
+                    // 將新的 Javadoc 添加到欄位之前
+                    PsiElement addedElement = field.addBefore(newDocComment, field.getFirstChild());
 
-            // (可選但推薦) 添加完 Javadoc 後，重新格式化受影響的程式碼
-            if (addedElement != null && addedElement.isValid()) {
-                CodeStyleManager.getInstance(project).reformat(field); // 格式化整個欄位定義
-            } else if (field.isValid()) {
-                CodeStyleManager.getInstance(project).reformat(field);
-            }
+                    // (可選但推薦) 添加完 Javadoc 後，重新格式化受影響的程式碼
+                    if (addedElement != null && addedElement.isValid()) {
+                        CodeStyleManager.getInstance(project).reformat(field); // 格式化整個欄位定義
+                    } else if (field.isValid()) {
+                        CodeStyleManager.getInstance(project).reformat(field);
+                    }
 
-        } catch (IncorrectOperationException e) {
-            // 處理 PSI 操作可能拋出的異常
-            System.err.println("應用 AddFieldJavadocFix 時出錯: " + e.getMessage());
+                } catch (IncorrectOperationException e) {
+                    // 處理 PSI 操作可能拋出的異常
+                    System.err.println("應用 AddFieldJavadocFix 時出錯: " + e.getMessage());
+                }
+        };
+        
+        // 根據是否在預覽模式決定執行方式
+        if (isInPreviewMode) {
+            // 在預覽模式下直接執行，不使用 CommandProcessor
+            applyFixRunnable.run();
+        } else {
+            // 正常模式下使用 WriteAction 和 CommandProcessor
+            com.intellij.openapi.command.CommandProcessor.getInstance().executeCommand(project, () -> {
+                com.intellij.openapi.application.WriteAction.run(() -> applyFixRunnable.run());
+            }, getName(), null);
         }
     }
 

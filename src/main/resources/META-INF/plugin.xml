@@ -95,6 +95,10 @@
     <depends>com.intellij.modules.java</depends>
 
     <extensions defaultExtensionNs="com.intellij">
+        <!-- Notification group for Code Sentinel -->
+        <notificationGroup id="Code Sentinel" 
+                          displayType="BALLOON"/>
+        
         <!-- 1. 原有的 API MsgID 檢查器 -->
         <localInspection language="JAVA"
                          displayName="API MsgID檢查"
@@ -138,6 +142,11 @@
                              instance="com.cathaybk.codingassistant.settings.GitSettingsConfigurable"
                              id="com.cathaybk.codingassistant.settings.GitSettingsConfigurable" 
                              displayName="Code Sentinel"/>
+        
+        <!-- ======================================== -->
+        <!-- 5. 新增緩存管理器服務                   -->
+        <!-- ======================================== -->
+        <projectService serviceImplementation="com.cathaybk.codingassistant.cache.InspectionCacheManager"/>
 
     </extensions>
 </idea-plugin>

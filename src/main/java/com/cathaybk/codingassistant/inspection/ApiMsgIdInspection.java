@@ -13,6 +13,9 @@ import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiElementVisitor;
 import com.intellij.psi.PsiMethod;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import com.intellij.openapi.application.ReadAction;
+import com.intellij.openapi.progress.ProgressManager;
 
 import java.util.List;
 // import java.util.*; // 可能不再需要
@@ -29,6 +32,11 @@ public class ApiMsgIdInspection extends AbstractBaseJavaLocalInspectionTool {
     @Override
     public String getShortName() {
         return "ApiMsgIdInspection";
+    }
+
+    @Override
+    public boolean isEnabledByDefault() {
+        return true;
     }
 
     @NotNull
@@ -50,15 +58,23 @@ public class ApiMsgIdInspection extends AbstractBaseJavaLocalInspectionTool {
 
             @Override
             public void visitMethod(@NotNull PsiMethod method) {
-                // 委託給 Util 進行檢查
-                List<ProblemInfo> problems = CathayBkInspectionUtil.checkApiMethodDoc(method);
+                // 檢查取消狀態
+                ProgressManager.checkCanceled();
+
+                // 在 ReadAction 中執行 PSI 操作（優化線程安全）
+                List<ProblemInfo> problems = ReadAction.compute(() -> CathayBkInspectionUtil.checkApiMethodDoc(method));
 
                 // 根據 Util 返回的問題註冊 ProblemDescriptor
                 for (ProblemInfo problem : problems) {
+                    // 檢查問題是否仍然有效
+                    if (!problem.isValid()) {
+                        continue;
+                    }
                     LocalQuickFix fix;
                     // 根據是否有建議值選擇不同的 QuickFix
                     if (problem.getSuggestionSource() != null && problem.getSuggestedValue() != null) {
-                        fix = new AddControllerApiIdFromServiceFix(problem.getSuggestionSource(), problem.getSuggestedValue());
+                        fix = new AddControllerApiIdFromServiceFix(problem.getSuggestionSource(),
+                                problem.getSuggestedValue());
                     } else {
                         fix = new AddApiIdDocFix(); // 預設修復
                     }
@@ -72,11 +88,19 @@ public class ApiMsgIdInspection extends AbstractBaseJavaLocalInspectionTool {
 
             @Override
             public void visitClass(@NotNull PsiClass aClass) {
-                // 委託給 Util 進行檢查
-                List<ProblemInfo> problems = CathayBkInspectionUtil.checkServiceClassDoc(aClass);
+                // 檢查取消狀態
+                ProgressManager.checkCanceled();
+
+                // 在 ReadAction 中執行 PSI 操作
+                List<ProblemInfo> problems = ReadAction
+                        .compute(() -> CathayBkInspectionUtil.checkServiceClassDoc(aClass));
 
                 // 根據 Util 返回的問題註冊 ProblemDescriptor
                 for (ProblemInfo problem : problems) {
+                    // 檢查問題是否仍然有效
+                    if (!problem.isValid()) {
+                        continue;
+                    }
                     LocalQuickFix fix;
                     if (problem.getSuggestionSource() != null && problem.getSuggestedValue() != null) {
                         fix = new AddServiceApiIdQuickFix(problem.getSuggestionSource(), problem.getSuggestedValue());

@@ -84,6 +84,11 @@ CathayBank-JavaCodeQuality/
 3. ✅ 實作 PSI 檢查結果緩存機制（InspectionCacheManager）
 4. ✅ 添加記憶體壓力監聽和自動調整機制
 5. ✅ 所有主要類別實作 Disposable 介面防止記憶體洩漏
+6. ✅ **升級至 Java 21 LTS**
+7. ✅ **實作 SearchableConfigurable 提供搜尋功能**
+8. ✅ **加入 ReadAction 和 ProgressManager 優化**
+9. ✅ **使用 WriteAction 和 CommandProcessor 確保線程安全**
+10. ✅ **動態配置支援（Gradle Properties）**
 
 ## 開發指南
 

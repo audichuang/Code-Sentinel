@@ -9,6 +9,9 @@ import com.intellij.psi.JavaElementVisitor;
 import com.intellij.psi.PsiElementVisitor;
 import com.intellij.psi.PsiField;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import com.intellij.openapi.application.ReadAction;
+import com.intellij.openapi.progress.ProgressManager;
 
 import java.util.List;
 
@@ -17,7 +20,8 @@ import java.util.List;
  */
 public class InjectedFieldJavadocInspection extends AbstractBaseJavaLocalInspectionTool {
 
-    // private static final Logger LOG = Logger.getInstance(InjectedFieldJavadocInspection.class); // Log 移走
+    // private static final Logger LOG =
+    // Logger.getInstance(InjectedFieldJavadocInspection.class); // Log 移走
 
     // 常量已移到 Util
     // private static final String[] COMPONENT_ANNOTATIONS = { ... };
@@ -53,12 +57,21 @@ public class InjectedFieldJavadocInspection extends AbstractBaseJavaLocalInspect
         return new JavaElementVisitor() {
             @Override
             public void visitField(@NotNull PsiField field) {
-                // 委託給 Util 進行檢查
-                List<ProblemInfo> problems = CathayBkInspectionUtil.checkInjectedFieldDoc(field);
+                // 檢查取消狀態
+                ProgressManager.checkCanceled();
+
+                // 在 ReadAction 中委託給 Util 進行檢查
+                List<ProblemInfo> problems = ReadAction
+                        .compute(() -> CathayBkInspectionUtil.checkInjectedFieldDoc(field));
 
                 // 根據 Util 返回的問題註冊 ProblemDescriptor
                 for (ProblemInfo problem : problems) {
-                    String fieldTypeName = field.getType().getPresentableText(); // 獲取類型名稱用於 QuickFix
+                    // 檢查問題是否仍然有效
+                    if (!problem.isValid()) {
+                        continue;
+                    }
+                    // 在 ReadAction 中獲取類型名稱
+                    String fieldTypeName = ReadAction.compute(() -> field.getType().getPresentableText());
                     holder.registerProblem(
                             problem.getElement(),
                             problem.getDescription(),

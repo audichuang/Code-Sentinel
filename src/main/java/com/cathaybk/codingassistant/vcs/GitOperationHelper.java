@@ -327,8 +327,13 @@ public class GitOperationHelper {
      * 判斷當前分支是否落後於目標分支
      */
     private boolean isBranchBehind(File workDir, String currentBranch, String targetBranch) {
-        String command = "git rev-list --count " + currentBranch + "..origin/" + targetBranch;
-        ProcessResult result = executeGitCommand(workDir, command.split("\\s+"));
+        // 使用數組形式的命令，避免分支名稱中的特殊字符造成問題
+        // 使用 -- 分隔選項和引用，確保 Git 正確解析
+        String[] commandArray = new String[] {
+            "git", "rev-list", "--count", 
+            currentBranch + "..origin/" + targetBranch
+        };
+        ProcessResult result = executeGitCommand(workDir, commandArray);
 
         if (result.isSuccess()) {
             String output = result.getOutput().trim();
@@ -341,7 +346,28 @@ public class GitOperationHelper {
                 }
             }
         } else {
-            LOG.error("檢查分支是否落後時發生錯誤: " + result.getError());
+            // 如果第一種方式失敗，嘗試使用更安全的語法
+            // 某些特殊分支名稱可能需要完整的引用路徑
+            String[] alternativeCommand = new String[] {
+                "git", "rev-list", "--count",
+                "HEAD..refs/remotes/origin/" + targetBranch
+            };
+            ProcessResult altResult = executeGitCommand(workDir, alternativeCommand);
+            
+            if (altResult.isSuccess()) {
+                String output = altResult.getOutput().trim();
+                if (output != null && !output.isEmpty()) {
+                    try {
+                        int behindCount = Integer.parseInt(output);
+                        return behindCount > 0;
+                    } catch (NumberFormatException e) {
+                        LOG.warn("無法解析 git rev-list 輸出: " + output, e);
+                    }
+                }
+            } else {
+                LOG.error("檢查分支是否落後時發生錯誤: " + result.getError() + 
+                         " (備選命令也失敗: " + altResult.getError() + ")");
+            }
         }
 
         return false;

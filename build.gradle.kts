@@ -2,12 +2,16 @@ import java.util.EnumSet
 
 plugins {
     id("java")
-    id("org.jetbrains.intellij.platform") version "2.7.0"
+    id("org.jetbrains.intellij.platform") version "2.7.2"
     id("io.freefair.lombok") version "8.6"
 }
 
-group = "com.cathaybk"
-version = "1.5.0"
+// 使用 Gradle Properties 支援動態配置
+val pluginVersion = providers.gradleProperty("plugin.version").orElse("1.5.0")
+val pluginGroup = providers.gradleProperty("plugin.group").orElse("com.cathaybk")
+
+group = pluginGroup.get()
+version = pluginVersion.get()
 
 repositories {
     mavenCentral()
@@ -40,9 +44,18 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-databind:2.19.0")
     implementation("com.fasterxml.jackson.core:jackson-annotations:2.19.0")
     
-    // 使用 IntelliJ IDEA Ultimate 2024.3
+    // 使用 IntelliJ IDEA Ultimate - 支援動態配置
+    val intellijTypeProperty = providers.gradleProperty("intellijPlatform.type").orElse("IU")
+    val intellijVersionProperty = providers.gradleProperty("intellijPlatform.version").orElse("2024.3")
+    
     intellijPlatform {
-        intellijIdeaUltimate("2024.3")
+        // 動態選擇 IDE 類型
+        when (intellijTypeProperty.get()) {
+            "IU" -> intellijIdeaUltimate(intellijVersionProperty.get())
+            "IC" -> intellijIdeaCommunity(intellijVersionProperty.get())
+            else -> create(intellijTypeProperty.get(), intellijVersionProperty.get())
+        }
+        
         bundledPlugin("com.intellij.java")
         
         // 插件驗證器
@@ -50,15 +63,21 @@ dependencies {
         
         // 測試框架支援
         testFramework(org.jetbrains.intellij.platform.gradle.TestFrameworkType.Platform)
+        
+        // Instrumentation tools - 2.7.0+ 不再需要顯式調用
+        // instrumentationTools() 已經被自動包含
     }
 }
 
 tasks {
-    // 配置 Java 版本
+    // 配置 Java 版本 - 升級到 Java 21 LTS
     withType<JavaCompile> {
-        sourceCompatibility = "17"
-        targetCompatibility = "17"
-        options.release.set(17)
+        sourceCompatibility = "21"
+        targetCompatibility = "21"
+        options.release.set(21)
+        options.encoding = "UTF-8"
+        // 啟用預覽功能（如需要）
+        // options.compilerArgs.add("--enable-preview")
     }
     
     test {
@@ -78,22 +97,74 @@ tasks {
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     }
     
-    // 跳過 buildSearchableOptions 任務
-    named("buildSearchableOptions") {
-        enabled = false
+    // 開發模式下跳過某些耗時任務
+    val isDevMode = providers.gradleProperty("dev.mode").map { it.toBoolean() }.orElse(false).get()
+    if (isDevMode) {
+        named("buildSearchableOptions") {
+            enabled = false
+        }
+        
+        // 開發時也可跳過驗證
+        named("verifyPlugin") {
+            enabled = !isDevMode
+        }
     }
     
-    // 設置執行 IDE 的選項
+    // 優化 runIde 任務
     named<org.jetbrains.intellij.platform.gradle.tasks.RunIdeTask>("runIde") {
-        // 設置系統屬性
+        // 增加記憶體配置
+        maxHeapSize = "2048m"
+        
+        // 開發時的 JVM 參數優化
+        jvmArgs(
+            "-XX:+UnlockDiagnosticVMOptions",
+            "-XX:+IgnoreUnrecognizedVMOptions",
+            "-Xverify:none",
+            "-XX:TieredStopAtLevel=1",
+            "-Djava.system.class.loader=com.intellij.util.lang.PathClassLoader"
+        )
+        
+        // 系統屬性
         systemProperty("idea.platform.prefix", "idea")
+        systemProperty("idea.is.internal", "true") // 開發者模式
+        systemProperty("idea.debug.mode", providers.gradleProperty("debug.mode").orElse("false").get())
+    }
+    
+    // 優化測試任務
+    test {
+        useJUnitPlatform()
+        maxHeapSize = "1024m"
+        
+        // 並行測試
+        maxParallelForks = Runtime.getRuntime().availableProcessors().coerceAtMost(4)
+        
+        // 測試輸出
+        testLogging {
+            events("passed", "skipped", "failed")
+            exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+            showStandardStreams = providers.gradleProperty("test.showOutput").map { it.toBoolean() }.orElse(false).get()
+        }
     }
 }
 
 // 配置 IntelliJ Platform 插件（使用 2.7.0 新特性）
+val buildSearchableOptionsProperty = providers.gradleProperty("buildSearchableOptions")
+    .map { it.toBoolean() }
+    .orElse(false)
+
+val instrumentCodeProperty = providers.gradleProperty("instrumentCode")
+    .map { it.toBoolean() }
+    .orElse(false)
+
 intellijPlatform {
     // 啟用自動重載功能（開發時很有用）
-    autoReload.set(true)
+    autoReload.set(providers.gradleProperty("dev.mode").map { it.toBoolean() }.orElse(true).get())
+    
+    // 搜尋選項建構（基於屬性）
+    buildSearchableOptions.set(buildSearchableOptionsProperty.get())
+    
+    // 程式碼 instrumentation（優化建構速度）
+    instrumentCode.set(instrumentCodeProperty.get())
     
     // 插件配置
     pluginConfiguration {
@@ -123,9 +194,13 @@ intellijPlatform {
         """)
 
         ideaVersion {
-            sinceBuild.set("231")
-            // 使用本地版本時，不設定 untilBuild 以支援最新版本
-            // untilBuild 留空表示沒有版本上限
+            sinceBuild.set(providers.gradleProperty("plugin.sinceBuild").orElse("231"))
+            // 動態控制 untilBuild
+            val untilBuildProperty = providers.gradleProperty("plugin.untilBuild")
+            if (untilBuildProperty.isPresent) {
+                untilBuild.set(untilBuildProperty)
+            }
+            // 不設定 untilBuild 表示無版本上限
         }
         
         changeNotes.set("""

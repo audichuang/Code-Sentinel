@@ -45,8 +45,8 @@ public class CathayBkInspectionUtil {
     // MethodNamingInspection 的常量 (只保留駝峰命名檢查)
     private static final Pattern CAMEL_CASE_PATTERN = Pattern.compile("^[a-z][a-zA-Z0-9]*$");
     // private static final Pattern MEANINGLESS_NAME_PATTERN = Pattern // <-- 已移除
-    //        .compile(".*(?:asdasd|qwerty|test\\d+|temp\\d*|foo|bar|baz|dummy).*", Pattern.CASE_INSENSITIVE);
-
+    // .compile(".*(?:asdasd|qwerty|test\\d+|temp\\d*|foo|bar|baz|dummy).*",
+    // Pattern.CASE_INSENSITIVE);
 
     // --- 檢查方法 ---
 
@@ -86,8 +86,7 @@ public class CathayBkInspectionUtil {
             problems.add(new ProblemInfo(
                     problemElement,
                     "API 方法缺少有效的電文代號註解 (格式: ID 描述)",
-                    ProblemHighlightType.WARNING
-            ));
+                    ProblemHighlightType.WARNING));
         }
         return problems;
     }
@@ -108,18 +107,15 @@ public class CathayBkInspectionUtil {
         if (containingClass == null || !ApiMsgIdUtil.isServiceClass(containingClass)) {
             return problems; // 不是 Service 類別中的方法，不檢查
         }
-        
-        // 調試輸出
-        System.err.println("[checkServiceMethodDoc] 檢查 Service 方法: " + containingClass.getName() + "." + method.getName());
 
         // 排除一些不需要檢查的方法
-        if (method.isConstructor() || 
-            method.hasModifierProperty(PsiModifier.PRIVATE) ||
-            method.hasModifierProperty(PsiModifier.STATIC) ||
-            "toString".equals(method.getName()) ||
-            "equals".equals(method.getName()) ||
-            "hashCode".equals(method.getName()) ||
-            "clone".equals(method.getName())) {
+        if (method.isConstructor() ||
+                method.hasModifierProperty(PsiModifier.PRIVATE) ||
+                method.hasModifierProperty(PsiModifier.STATIC) ||
+                "toString".equals(method.getName()) ||
+                "equals".equals(method.getName()) ||
+                "hashCode".equals(method.getName()) ||
+                "clone".equals(method.getName())) {
             return problems; // 跳過不需要檢查的方法
         }
 
@@ -130,13 +126,12 @@ public class CathayBkInspectionUtil {
         // --- 如果 Service 方法缺少有效的電文代號 ---
         PsiElement problemElement = method.getNameIdentifier() != null ? method.getNameIdentifier() : method;
         String serviceType = ApiMsgIdUtil.isServiceInterface(containingClass) ? "Service 介面" : "Service 實現類";
-        
+
         problems.add(new ProblemInfo(
                 problemElement,
                 serviceType + "方法缺少有效的電文代號註解 (格式: ID 描述)",
-                ProblemHighlightType.WARNING
-        ));
-        
+                ProblemHighlightType.WARNING));
+
         return problems;
     }
 
@@ -165,9 +160,12 @@ public class CathayBkInspectionUtil {
             PsiElement problemElement = aClass.getNameIdentifier();
             if (problemElement == null) {
                 PsiKeyword classKeyword = PsiTreeUtil.getChildOfType(aClass, PsiKeyword.class);
-                problemElement = (classKeyword != null && PsiKeyword.CLASS.equals(classKeyword.getText())) ? classKeyword : aClass;
+                problemElement = (classKeyword != null && PsiKeyword.CLASS.equals(classKeyword.getText()))
+                        ? classKeyword
+                        : aClass;
             }
-            if (problemElement == null) return problems; // 無法定位問題元素
+            if (problemElement == null)
+                return problems; // 無法定位問題元素
 
             Map.Entry<String, String> entry = sourceApiIds.entrySet().iterator().next();
             String sourceName = entry.getKey();
@@ -178,15 +176,14 @@ public class CathayBkInspectionUtil {
                     "Service 類別缺少有效的電文代號註解。建議來源：" + sourceName,
                     ProblemHighlightType.WARNING,
                     sourceName, // 來源
-                    apiId       // 建議值
+                    apiId // 建議值
             ));
         } else {
             PsiElement problemElement = aClass.getNameIdentifier() != null ? aClass.getNameIdentifier() : aClass;
             problems.add(new ProblemInfo(
                     problemElement,
                     "Service 類別缺少有效的電文代號註解 (格式: ID 描述)",
-                    ProblemHighlightType.WARNING
-            ));
+                    ProblemHighlightType.WARNING));
         }
         return problems;
     }
@@ -246,8 +243,7 @@ public class CathayBkInspectionUtil {
             problems.add(new ProblemInfo(
                     nameIdentifier,
                     "方法名稱必須符合駝峰式命名法（小駝峰式）",
-                    ProblemHighlightType.WARNING
-            ));
+                    ProblemHighlightType.WARNING));
         }
 
         // -- 無意義名稱檢查邏輯已移除 --
@@ -255,7 +251,6 @@ public class CathayBkInspectionUtil {
 
         return problems;
     }
-
 
     // --- 內部輔助方法 ---
 
@@ -282,7 +277,8 @@ public class CathayBkInspectionUtil {
         for (PsiAnnotation annotation : field.getAnnotations()) {
             String shortName = annotation.getQualifiedName(); // 可能就是簡寫
             if (shortName != null) {
-                if ("Autowired".equals(shortName) || "Inject".equals(shortName) || "Resource".equals(shortName) || "Qualifier".equals(shortName)) {
+                if ("Autowired".equals(shortName) || "Inject".equals(shortName) || "Resource".equals(shortName)
+                        || "Qualifier".equals(shortName)) {
                     return true;
                 }
                 // 檢查更深層次的 FQN
@@ -297,7 +293,6 @@ public class CathayBkInspectionUtil {
                 }
             }
         }
-
 
         // 檢查是否為 final 欄位，且其所在的類別是 Spring 元件
         // (這通常暗示著使用 Lombok 的 @RequiredArgsConstructor 進行建構子注入)
