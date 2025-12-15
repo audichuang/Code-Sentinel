@@ -60,25 +60,32 @@ public class InjectedFieldJavadocInspection extends AbstractBaseJavaLocalInspect
                 // 檢查取消狀態
                 ProgressManager.checkCanceled();
 
-                // 在 ReadAction 中委託給 Util 進行檢查
-                List<ProblemInfo> problems = ReadAction
-                        .compute(() -> CathayBkInspectionUtil.checkInjectedFieldDoc(field));
+                // 合併 ReadAction 調用以提高效能
+                // 同時獲取問題列表和欄位類型名稱
+                ReadAction.run(() -> {
+                    List<ProblemInfo> problems = CathayBkInspectionUtil.checkInjectedFieldDoc(field);
 
-                // 根據 Util 返回的問題註冊 ProblemDescriptor
-                for (ProblemInfo problem : problems) {
-                    // 檢查問題是否仍然有效
-                    if (!problem.isValid()) {
-                        continue;
+                    if (problems.isEmpty()) {
+                        return;
                     }
-                    // 在 ReadAction 中獲取類型名稱
-                    String fieldTypeName = ReadAction.compute(() -> field.getType().getPresentableText());
-                    holder.registerProblem(
-                            problem.getElement(),
-                            problem.getDescription(),
-                            problem.getHighlightType(),
-                            new AddFieldJavadocFix(fieldTypeName) // QuickFix 保持不變
-                    );
-                }
+
+                    // 只獲取一次類型名稱（所有問題都是同一個欄位）
+                    String fieldTypeName = field.getType().getPresentableText();
+
+                    // 根據 Util 返回的問題註冊 ProblemDescriptor
+                    for (ProblemInfo problem : problems) {
+                        // 檢查問題是否仍然有效
+                        if (!problem.isValid()) {
+                            continue;
+                        }
+                        holder.registerProblem(
+                                problem.getElement(),
+                                problem.getDescription(),
+                                problem.getHighlightType(),
+                                new AddFieldJavadocFix(fieldTypeName) // QuickFix 保持不變
+                        );
+                    }
+                });
             }
         };
     }

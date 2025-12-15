@@ -1,5 +1,8 @@
 package com.cathaybk.codingassistant.utils;
 
+import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.progress.ProcessCanceledException;
+import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
 import com.intellij.psi.javadoc.PsiDocComment;
@@ -39,6 +42,14 @@ import java.util.regex.Pattern;
  * </p>
  */
 public class ApiMsgIdUtil {
+
+    private static final Logger LOG = Logger.getInstance(ApiMsgIdUtil.class);
+
+    /**
+     * 搜索結果的最大數量限制，避免在大型專案中無限制搜索導致效能問題。
+     * 注意：達到此限制時會記錄警告日誌，表示結果可能不完整。
+     */
+    private static final int MAX_REFERENCES = 250;
 
     /**
      * 電文代號的正規表示式模式。
@@ -406,23 +417,41 @@ public class ApiMsgIdUtil {
     @NotNull
     public static Map<String, String> findControllerApiIds(@NotNull PsiClass serviceOrInterfaceClass) {
         Map<String, String> result = new HashMap<>();
-        Project project = serviceOrInterfaceClass.getProject();
 
         try {
+            // 檢查取消狀態
+            ProgressManager.checkCanceled();
+
             // 嘗試使用 serviceOrInterfaceClass 的 use scope 作為搜索範圍
             SearchScope scope = serviceOrInterfaceClass.getUseScope();
 
-            // 查找 serviceOrInterfaceClass 的所有引用
-            Collection<PsiReference> references = ReferencesSearch.search(serviceOrInterfaceClass, scope).findAll();
+            // 查找 serviceOrInterfaceClass 的引用，限制數量避免效能問題
+            List<PsiReference> references = new ArrayList<>();
+            AtomicBoolean hitLimit = new AtomicBoolean(false);
+            ReferencesSearch.search(serviceOrInterfaceClass, scope).forEach(ref -> {
+                ProgressManager.checkCanceled();
+                if (references.size() < MAX_REFERENCES) {
+                    references.add(ref);
+                    return true;
+                }
+                hitLimit.set(true);
+                return false;  // 達到上限，停止搜索
+            });
+
+            // 達到搜索限制時記錄警告（每次搜索獨立記錄）
+            if (hitLimit.get()) {
+                LOG.warn("ReferencesSearch 達到上限 " + MAX_REFERENCES + "，結果可能不完整: " +
+                         serviceOrInterfaceClass.getQualifiedName());
+            }
 
             // 檢查這些引用是否關聯到符合條件的 Controller 方法
             // 第二個參數傳遞 serviceOrInterfaceClass，用於後續的類型使用檢查
             checkReferences(references, serviceOrInterfaceClass, result);
 
+        } catch (ProcessCanceledException e) {
+            throw e;  // 重新拋出取消異常，讓上層處理
         } catch (Exception e) {
-            // 實際應用中應使用日誌框架
-            System.err.println(
-                    "查找 Controller API ID 時出錯，類: " + serviceOrInterfaceClass.getName() + ", 錯誤: " + e.getMessage());
+            LOG.warn("查找 Controller API ID 時出錯，類: " + serviceOrInterfaceClass.getName() + ", 錯誤: " + e.getMessage(), e);
         }
         return result;
     }
@@ -450,6 +479,9 @@ public class ApiMsgIdUtil {
         Set<PsiMethod> checkedMethods = new HashSet<>();
 
         for (PsiReference reference : references) {
+            // 檢查取消狀態
+            ProgressManager.checkCanceled();
+
             PsiElement element = reference.getElement();
             if (element == null)
                 continue;
@@ -471,10 +503,26 @@ public class ApiMsgIdUtil {
             }
 
             if (variable != null) {
-                // 查找這個 *變數* 在哪裡被 *使用* 了
-                Collection<PsiReference> variableReferences = ReferencesSearch.search(variable, variable.getUseScope())
-                        .findAll();
+                // 查找這個 *變數* 在哪裡被 *使用* 了，限制搜索數量
+                List<PsiReference> variableReferences = new ArrayList<>();
+                AtomicBoolean varHitLimit = new AtomicBoolean(false);
+                ReferencesSearch.search(variable, variable.getUseScope()).forEach(varRef -> {
+                    ProgressManager.checkCanceled();
+                    if (variableReferences.size() < MAX_REFERENCES) {
+                        variableReferences.add(varRef);
+                        return true;
+                    }
+                    varHitLimit.set(true);
+                    return false;  // 達到上限，停止搜索
+                });
+
+                // 達到搜索限制時記錄警告（每次搜索獨立記錄）
+                if (varHitLimit.get()) {
+                    LOG.warn("變數引用搜索達到上限 " + MAX_REFERENCES + "，結果可能不完整: " + variable.getName());
+                }
+
                 for (PsiReference varRef : variableReferences) {
+                    ProgressManager.checkCanceled();
                     PsiElement usageElement = varRef.getElement();
                     if (usageElement == null)
                         continue;
@@ -539,6 +587,9 @@ public class ApiMsgIdUtil {
         body.accept(new JavaRecursiveElementWalkingVisitor() {
             @Override
             public void visitMethodCallExpression(@NotNull PsiMethodCallExpression expression) {
+                // 檢查取消狀態
+                ProgressManager.checkCanceled();
+
                 if (usageFound.get()) {
                     stopWalking();
                     return;
@@ -549,6 +600,9 @@ public class ApiMsgIdUtil {
             }
 
             private void checkQualifier(@Nullable PsiExpression qualifier) {
+                // 檢查取消狀態
+                ProgressManager.checkCanceled();
+
                 if (usageFound.get() || qualifier == null) {
                     return;
                 }
@@ -706,6 +760,9 @@ public class ApiMsgIdUtil {
              */
             @Override
             public void visitMethodCallExpression(@NotNull PsiMethodCallExpression expression) {
+                // 檢查取消狀態
+                ProgressManager.checkCanceled();
+
                 super.visitMethodCallExpression(expression); // 繼續遍歷子節點
 
                 // 獲取調用方法的對象 (qualifier)
@@ -772,6 +829,9 @@ public class ApiMsgIdUtil {
             // 訪問變數聲明，檢查類型是否為 Service
             @Override
             public void visitDeclarationStatement(@NotNull PsiDeclarationStatement statement) {
+                // 檢查取消狀態
+                ProgressManager.checkCanceled();
+
                 super.visitDeclarationStatement(statement);
                 for (PsiElement declaredElement : statement.getDeclaredElements()) {
                     if (declaredElement instanceof PsiLocalVariable) {

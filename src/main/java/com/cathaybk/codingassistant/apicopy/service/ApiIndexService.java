@@ -58,7 +58,9 @@ public final class ApiIndexService implements Disposable {
     private final Map<String, SoftReference<ApiInfo>> apiCache = new ConcurrentHashMap<>();
     private volatile boolean indexed = false;
     private volatile long lastIndexTime = 0;
+    private volatile long lastCleanupTime = 0;
     private static final long INDEX_TTL = 300_000; // 5 分鐘過期
+    private static final long CLEANUP_INTERVAL = 60_000; // 1 分鐘清理一次
 
     public static ApiIndexService getInstance(@NotNull Project project) {
         return project.getService(ApiIndexService.class);
@@ -75,6 +77,7 @@ public final class ApiIndexService implements Disposable {
     @NotNull
     public List<ApiInfo> searchApis(@NotNull String keyword) {
         ensureIndexed();
+        cleanupStaleEntries();
 
         return ReadAction.compute(() -> {
             List<ApiInfo> results = new ArrayList<>();
@@ -403,6 +406,38 @@ public final class ApiIndexService implements Disposable {
             return text.isEmpty() ? null : text;
         }
         return null;
+    }
+
+    /**
+     * 清理已被 GC 回收或無效的 SoftReference 條目
+     * 定期執行以防止無效條目累積
+     */
+    private void cleanupStaleEntries() {
+        long now = System.currentTimeMillis();
+        // 限制清理頻率，避免過度清理
+        if (now - lastCleanupTime < CLEANUP_INTERVAL) {
+            return;
+        }
+        lastCleanupTime = now;
+
+        int beforeSize = apiCache.size();
+        int removedCount = 0;
+
+        Iterator<Map.Entry<String, SoftReference<ApiInfo>>> iterator = apiCache.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<String, SoftReference<ApiInfo>> entry = iterator.next();
+            SoftReference<ApiInfo> ref = entry.getValue();
+            ApiInfo api = ref.get();
+            // 移除已被 GC 回收或無效的條目
+            if (api == null || !api.isValid()) {
+                iterator.remove();
+                removedCount++;
+            }
+        }
+
+        if (removedCount > 0) {
+            LOG.debug("清理過期 API 緩存：" + removedCount + " 項（從 " + beforeSize + " 減少到 " + apiCache.size() + "）");
+        }
     }
 
     @Override

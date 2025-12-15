@@ -73,9 +73,10 @@ public class CathayBkProblemsPanel extends JPanel implements com.intellij.openap
     // 防止重複更新的標記
     private final AtomicBoolean isUpdating = new AtomicBoolean(false);
 
-    // 使用 WeakReference 避免 MouseListener 引起的記憶體洩漏
-    private final List<WeakReference<MouseListener>> registeredMouseListeners = new ArrayList<>();
-    private final List<WeakReference<TreeSelectionListener>> registeredTreeListeners = new ArrayList<>();
+    // 使用強引用存儲 Listener，在 dispose() 中正確清理
+    // 不使用 WeakReference 是因為它可能在清理前被 GC 回收，導致 Listener 無法移除
+    private final List<MouseListener> registeredMouseListeners = new ArrayList<>();
+    private final List<TreeSelectionListener> registeredTreeListeners = new ArrayList<>();
 
     public CathayBkProblemsPanel(Project project, List<ProblemInfo> problems) {
         super(new BorderLayout());
@@ -368,7 +369,7 @@ public class CathayBkProblemsPanel extends JPanel implements com.intellij.openap
         };
 
         this.problemTree.addTreeSelectionListener(selectionListener);
-        registeredTreeListeners.add(new WeakReference<>(selectionListener));
+        registeredTreeListeners.add(selectionListener);
 
         MouseAdapter mouseAdapter = new MouseAdapter() {
             @Override
@@ -390,7 +391,7 @@ public class CathayBkProblemsPanel extends JPanel implements com.intellij.openap
         };
 
         this.problemTree.addMouseListener(mouseAdapter);
-        registeredMouseListeners.add(new WeakReference<>(mouseAdapter));
+        registeredMouseListeners.add(mouseAdapter);
     }
 
     /**
@@ -886,17 +887,15 @@ public class CathayBkProblemsPanel extends JPanel implements com.intellij.openap
         // 清除所有 listener 和引用
         if (problemTree != null) {
             // 移除所有樹選擇監聽器
-            for (WeakReference<TreeSelectionListener> ref : registeredTreeListeners) {
-                TreeSelectionListener listener = ref.get();
+            for (TreeSelectionListener listener : registeredTreeListeners) {
                 if (listener != null) {
                     problemTree.removeTreeSelectionListener(listener);
                 }
             }
             registeredTreeListeners.clear();
 
-            // 移除所有滑鼠監聽器
-            for (WeakReference<MouseListener> ref : registeredMouseListeners) {
-                MouseListener listener = ref.get();
+            // 移除所有滑鼠監聯器
+            for (MouseListener listener : registeredMouseListeners) {
                 if (listener != null) {
                     problemTree.removeMouseListener(listener);
                 }
@@ -906,15 +905,25 @@ public class CathayBkProblemsPanel extends JPanel implements com.intellij.openap
             // 清除模型和選擇路徑
             problemTree.setModel(new DefaultTreeModel(new DefaultMutableTreeNode()));
             problemTree.clearSelection();
+            problemTree = null; // 釋放樹組件引用
         }
 
         // 清除引用
         quickFixListener = null;
         fixAllListener = null;
 
-        // 註冊為已棄置
-        Disposer.register(this, () -> {
-            // 進一步釋放資源的操作
-        });
+        // 清除詳情面板
+        if (detailsPane != null) {
+            detailsPane.setText("");
+            detailsPane = null; // 釋放詳情面板引用
+        }
+
+        // 重置過濾器，避免閉包持有 ProblemInfo 引用
+        currentFilter = p -> true;
+
+        // 清除搜索欄位
+        searchField = null;
+
+        LOG.info("CathayBkProblemsPanel 已釋放資源");
     }
 }

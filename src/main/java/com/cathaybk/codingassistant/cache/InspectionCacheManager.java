@@ -17,6 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -46,7 +47,11 @@ public final class InspectionCacheManager implements Disposable {
     // 記憶體壓力監聽器的 Disposable
     private final Disposable lowMemoryWatcherDisposable;
     
-    private volatile boolean isLowMemoryMode = false;
+    // 使用 AtomicBoolean 避免 TOCTOU 競態條件
+    private final AtomicBoolean isLowMemoryMode = new AtomicBoolean(false);
+
+    // 防止並行清理的互斥鎖
+    private final AtomicBoolean cleanupInProgress = new AtomicBoolean(false);
     
     /**
      * 獲取專案級別的單例實例
@@ -87,7 +92,7 @@ public final class InspectionCacheManager implements Disposable {
         
         LowMemoryWatcher.register(() -> {
             LOG.info("檢測到記憶體壓力，清理緩存");
-            isLowMemoryMode = true;
+            isLowMemoryMode.set(true);
             clearCache();
         }, lowMemoryWatcherDisposable);
         
@@ -125,7 +130,7 @@ public final class InspectionCacheManager implements Disposable {
      * 獲取緩存的檢查結果
      */
     public Optional<List<ProblemInfo>> getCachedResult(@NotNull PsiFile file) {
-        if (isLowMemoryMode) {
+        if (isLowMemoryMode.get()) {
             // 低記憶體模式下不使用緩存
             return Optional.empty();
         }
@@ -158,81 +163,110 @@ public final class InspectionCacheManager implements Disposable {
      * 緩存檢查結果
      */
     public void cacheResult(@NotNull PsiFile file, @NotNull List<ProblemInfo> problems) {
-        if (isLowMemoryMode || file.getVirtualFile() == null) {
+        if (isLowMemoryMode.get() || file.getVirtualFile() == null) {
             return;
         }
-        
-        // 檢查緩存大小
-        if (cache.size() >= MAX_CACHE_SIZE) {
-            performCleanup();
-        }
-        
+
         String key = file.getVirtualFile().getPath();
         CachedInspectionResult result = new CachedInspectionResult(problems, file.getModificationStamp());
-        cache.put(key, new SoftReference<>(result));
-        
+
+        // 使用 compute 確保原子操作
+        cache.compute(key, (k, existingRef) -> {
+            // 如果緩存過大，先觸發異步清理（不阻塞當前操作）
+            if (cache.size() >= MAX_CACHE_SIZE && existingRef == null) {
+                // 只在新增項目時觸發清理，更新現有項目不觸發
+                scheduleAsyncCleanup();
+            }
+            return new SoftReference<>(result);
+        });
+
         LOG.debug("緩存結果: " + file.getName() + ", 問題數: " + problems.size());
     }
-    
+
     /**
-     * 執行清理操作
+     * 安排異步清理（避免阻塞調用線程）
+     * 互斥鎖檢查已移至 performCleanup 內部，確保所有調用路徑都被保護
+     */
+    private void scheduleAsyncCleanup() {
+        // 直接提交任務，互斥鎖檢查在 performCleanup 內部進行
+        ApplicationManager.getApplication().executeOnPooledThread(this::performCleanup);
+    }
+
+    /**
+     * 執行清理操作（直接執行，不再嵌套 pooled thread）
+     * 互斥鎖在此處檢查，確保排程任務和異步清理都能正確互斥
      */
     private void performCleanup() {
-        ApplicationManager.getApplication().executeOnPooledThread(() -> {
-            int removedCount = 0;
-            Iterator<Map.Entry<String, SoftReference<CachedInspectionResult>>> iterator = 
-                cache.entrySet().iterator();
-            
-            while (iterator.hasNext()) {
-                Map.Entry<String, SoftReference<CachedInspectionResult>> entry = iterator.next();
-                SoftReference<CachedInspectionResult> ref = entry.getValue();
-                CachedInspectionResult result = ref.get();
-                
-                if (result == null || !result.isValid()) {
-                    iterator.remove();
-                    removedCount++;
-                }
+        // 互斥鎖檢查移至此處，確保所有調用路徑都被保護
+        if (!cleanupInProgress.compareAndSet(false, true)) {
+            LOG.debug("清理已在進行中，跳過本次清理");
+            return;
+        }
+
+        try {
+            performCleanupInternal();
+        } finally {
+            cleanupInProgress.set(false);
+        }
+    }
+
+    /**
+     * 實際的清理邏輯（內部方法，假設已持有互斥鎖）
+     */
+    private void performCleanupInternal() {
+        int removedCount = 0;
+        Iterator<Map.Entry<String, SoftReference<CachedInspectionResult>>> iterator =
+            cache.entrySet().iterator();
+
+        while (iterator.hasNext()) {
+            Map.Entry<String, SoftReference<CachedInspectionResult>> entry = iterator.next();
+            SoftReference<CachedInspectionResult> ref = entry.getValue();
+            CachedInspectionResult result = ref.get();
+
+            if (result == null || !result.isValid()) {
+                iterator.remove();
+                removedCount++;
             }
-            
-            if (removedCount > 0) {
-                LOG.debug("清理過期緩存: " + removedCount + " 項");
+        }
+
+        if (removedCount > 0) {
+            LOG.debug("清理過期緩存: " + removedCount + " 項");
+        }
+
+        // 如果仍然超過大小限制，移除最舊的項目
+        if (cache.size() > MAX_CACHE_SIZE) {
+            List<Map.Entry<String, SoftReference<CachedInspectionResult>>> entries =
+                new ArrayList<>(cache.entrySet());
+
+            entries.sort((e1, e2) -> {
+                CachedInspectionResult r1 = e1.getValue().get();
+                CachedInspectionResult r2 = e2.getValue().get();
+                if (r1 == null) return -1;
+                if (r2 == null) return 1;
+                return Long.compare(r1.timestamp, r2.timestamp);
+            });
+
+            int toRemove = cache.size() - MAX_CACHE_SIZE + 50; // 多移除一些
+            for (int i = 0; i < toRemove && i < entries.size(); i++) {
+                cache.remove(entries.get(i).getKey());
             }
-            
-            // 如果仍然超過大小限制，移除最舊的項目
-            if (cache.size() > MAX_CACHE_SIZE) {
-                List<Map.Entry<String, SoftReference<CachedInspectionResult>>> entries = 
-                    new ArrayList<>(cache.entrySet());
-                
-                entries.sort((e1, e2) -> {
-                    CachedInspectionResult r1 = e1.getValue().get();
-                    CachedInspectionResult r2 = e2.getValue().get();
-                    if (r1 == null) return -1;
-                    if (r2 == null) return 1;
-                    return Long.compare(r1.timestamp, r2.timestamp);
-                });
-                
-                int toRemove = cache.size() - MAX_CACHE_SIZE + 50; // 多移除一些
-                for (int i = 0; i < toRemove && i < entries.size(); i++) {
-                    cache.remove(entries.get(i).getKey());
-                }
-                
-                LOG.debug("LRU 清理: " + toRemove + " 項");
+
+            LOG.debug("LRU 清理: " + toRemove + " 項");
+        }
+
+        // 檢查是否可以退出低記憶體模式
+        if (isLowMemoryMode.get()) {
+            Runtime runtime = Runtime.getRuntime();
+            long freeMemory = runtime.freeMemory();
+            long totalMemory = runtime.totalMemory();
+            long maxMemory = runtime.maxMemory();
+            double memoryUsage = (double)(totalMemory - freeMemory) / maxMemory;
+
+            if (memoryUsage < 0.7) { // 記憶體使用率低於 70%
+                isLowMemoryMode.set(false);
+                LOG.info("退出低記憶體模式");
             }
-            
-            // 檢查是否可以退出低記憶體模式
-            if (isLowMemoryMode) {
-                Runtime runtime = Runtime.getRuntime();
-                long freeMemory = runtime.freeMemory();
-                long totalMemory = runtime.totalMemory();
-                long maxMemory = runtime.maxMemory();
-                double memoryUsage = (double)(totalMemory - freeMemory) / maxMemory;
-                
-                if (memoryUsage < 0.7) { // 記憶體使用率低於 70%
-                    isLowMemoryMode = false;
-                    LOG.info("退出低記憶體模式");
-                }
-            }
-        });
+        }
     }
     
     /**
@@ -260,7 +294,7 @@ public final class InspectionCacheManager implements Disposable {
         
         return String.format(
             "緩存統計 - 總項目: %d, 有效: %d, 命中率: %.1f%% (%d/%d), 低記憶體模式: %s",
-            cache.size(), validEntries, hitRate, hits, misses, isLowMemoryMode
+            cache.size(), validEntries, hitRate, hits, misses, isLowMemoryMode.get()
         );
     }
     

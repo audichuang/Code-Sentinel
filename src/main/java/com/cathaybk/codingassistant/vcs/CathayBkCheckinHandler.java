@@ -612,27 +612,38 @@ public class CathayBkCheckinHandler extends CheckinHandler implements Disposable
     @Override
     public void dispose() {
         LOG.info("CathayBkCheckinHandler dispose 被呼叫");
-        
+
         // 清理 ToolWindow 參考
         if (currentProblemsPanel != null) {
             // 如果 panel 實作了 Disposable，確保它被 dispose
             if (currentProblemsPanel instanceof Disposable) {
-                Disposer.dispose((Disposable) currentProblemsPanel);
+                try {
+                    Disposer.dispose((Disposable) currentProblemsPanel);
+                } catch (Exception e) {
+                    LOG.warn("Dispose currentProblemsPanel 時發生錯誤: " + e.getMessage());
+                }
             }
             currentProblemsPanel = null;
         }
-        
+
         // 清理問題列表
         if (collectedProblems != null) {
             collectedProblems.clear();
             collectedProblems = null;
         }
-        
+
         // 清理原子標記
         gitCheckInProgress.set(false);
-        
-        // 注意：gitHelper、dialogHelper 和 problemCollector 可能在其他地方也有使用
-        // 所以不在這裡 dispose 它們，只是清理參考
-        // 如果它們是獨占的，可以考慮 dispose
+
+        // Dispose problemCollector（它持有緩存和其他資源）
+        if (problemCollector != null) {
+            try {
+                Disposer.dispose(problemCollector);
+            } catch (Exception e) {
+                LOG.warn("Dispose problemCollector 時發生錯誤: " + e.getMessage());
+            }
+        }
+
+        LOG.info("CathayBkCheckinHandler 資源已釋放");
     }
 }

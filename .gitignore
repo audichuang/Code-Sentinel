@@ -5,7 +5,7 @@
 *.ipr
 out/
 .vscode/
-.intellijPlatform/
+.intellijPlatform
 qodana.yaml
 
 # Gradle
@@ -32,3 +32,4 @@ Desktop.ini
 bin/
 gen/
 intellij-platform-gradle-plugin-*/
+.gradle-user-home

@@ -45,7 +45,6 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.awt.*;
-import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -59,16 +58,17 @@ import java.util.concurrent.atomic.AtomicReference;
 public class ProblemCollector implements Disposable {
     private static final Logger LOG = Logger.getInstance(ProblemCollector.class);
     private static final String TOOL_WINDOW_ID = "Code Sentinel 檢查";
-    private static final int BATCH_SIZE = 10; // 批次處理大小，減少以提高響應性
+    private static final int BATCH_SIZE = 25; // 批次處理大小，平衡響應性和效能
     private static final int CANCEL_CHECK_INTERVAL = 5; // 取消檢查間隔
     
     // PSI 檢查緩存，使用單例管理器避免重複創建
     private final InspectionCacheManager inspectionCache;
 
     private final Project project;
-    // 使用 WeakReference 包裝問題列表，允許當記憶體不足時被回收
-    private WeakReference<List<ProblemInfo>> collectedProblemsRef;
-    private WeakReference<CathayBkProblemsPanel> currentProblemsPanelRef;
+    // 使用強引用存儲問題列表，在 dispose 時清理
+    // 避免 WeakReference 在 GC 時被意外回收導致結果丟失
+    private List<ProblemInfo> collectedProblems;
+    private CathayBkProblemsPanel currentProblemsPanel;
     // 保存工具窗口的參考
     private ToolWindow toolWindow;
 
@@ -303,8 +303,8 @@ public class ProblemCollector implements Disposable {
                 }
 
                 LOG.info("檢查完成，發現 " + allProblems.size() + " 個問題");
-                // 使用 WeakReference 包裝問題列表，允許垃圾回收
-                this.collectedProblemsRef = new WeakReference<>(allProblems);
+                // 存儲問題列表（使用強引用）
+                this.collectedProblems = allProblems;
 
             } catch (ProcessCanceledException e) {
                 LOG.info("檢查被取消");
@@ -323,7 +323,7 @@ public class ProblemCollector implements Disposable {
         }
 
         // 獲取收集到的問題
-        List<ProblemInfo> problems = collectedProblemsRef != null ? collectedProblemsRef.get() : null;
+        List<ProblemInfo> problems = collectedProblems;
 
         // 如果發現問題，彈出同步對話框詢問用戶
         if (problems != null && !problems.isEmpty()) {
@@ -388,7 +388,7 @@ public class ProblemCollector implements Disposable {
 
             // 創建問題面板
             CathayBkProblemsPanel problemsPanel = new CathayBkProblemsPanel(project, problems);
-            currentProblemsPanelRef = new WeakReference<>(problemsPanel);
+            currentProblemsPanel = problemsPanel;
 
             // 設置監聽器
             problemsPanel.setQuickFixListener(e -> applySelectedQuickFix());
@@ -421,7 +421,7 @@ public class ProblemCollector implements Disposable {
     }
 
     private void applySelectedQuickFix() {
-        CathayBkProblemsPanel panel = currentProblemsPanelRef != null ? currentProblemsPanelRef.get() : null;
+        CathayBkProblemsPanel panel = currentProblemsPanel;
         if (panel == null) {
             LOG.warn("Problem panel is not available for quick fix.");
             return;
@@ -465,17 +465,15 @@ public class ProblemCollector implements Disposable {
                             + ReadAction.compute(() -> element.getText()));
 
                     // 更新 UI
-                    CathayBkProblemsPanel currentPanel = currentProblemsPanelRef != null ? currentProblemsPanelRef.get()
-                            : null;
+                    CathayBkProblemsPanel currentPanel = currentProblemsPanel;
                     if (currentPanel != null) {
                         currentPanel.removeProblem(problem);
                         updateToolWindowContentTitle();
                     }
 
                     // 從問題列表中移除
-                    List<ProblemInfo> problems = collectedProblemsRef != null ? collectedProblemsRef.get() : null;
-                    if (problems != null) {
-                        problems.remove(problem);
+                    if (collectedProblems != null) {
+                        collectedProblems.remove(problem);
                     }
                 } catch (Exception ex) {
                     LOG.error("應用快速修復時出錯 (" + fixToApply.getName() + "): " + ex.getMessage(), ex);
@@ -486,7 +484,7 @@ public class ProblemCollector implements Disposable {
     }
 
     private void applyAllQuickFixes() {
-        List<ProblemInfo> problems = collectedProblemsRef != null ? collectedProblemsRef.get() : null;
+        List<ProblemInfo> problems = collectedProblems;
         if (problems == null || problems.isEmpty()) {
             Messages.showInfoMessage(project, "沒有發現問題需要修復", "一鍵修復全部");
             return;
@@ -594,7 +592,7 @@ public class ProblemCollector implements Disposable {
 
             ApplicationManager.getApplication().invokeLater(() -> {
                 // 更新 UI
-                CathayBkProblemsPanel panel = currentProblemsPanelRef != null ? currentProblemsPanelRef.get() : null;
+                CathayBkProblemsPanel panel = currentProblemsPanel;
                 if (panel != null) {
                     panel.refreshProblems(problems);
                 }
@@ -630,13 +628,12 @@ public class ProblemCollector implements Disposable {
 
         if (content != null) {
             int count = 0;
-            CathayBkProblemsPanel panel = currentProblemsPanelRef != null ? currentProblemsPanelRef.get() : null;
+            CathayBkProblemsPanel panel = currentProblemsPanel;
             if (panel != null) {
                 List<ProblemInfo> currentProblems = panel.getCurrentProblems();
                 count = currentProblems != null ? currentProblems.size() : 0;
             } else {
-                List<ProblemInfo> problems = collectedProblemsRef != null ? collectedProblemsRef.get() : null;
-                count = problems != null ? problems.size() : 0;
+                count = collectedProblems != null ? collectedProblems.size() : 0;
             }
             content.setDisplayName("檢查結果 (" + count + ")");
         } else {
@@ -793,31 +790,28 @@ public class ProblemCollector implements Disposable {
     @Override
     public void dispose() {
         // 清除集合和 UI 元素的引用
-        if (collectedProblemsRef != null) {
-            List<ProblemInfo> problems = collectedProblemsRef.get();
-            if (problems != null) {
-                problems.clear();
-            }
-            collectedProblemsRef = null;
+        if (collectedProblems != null) {
+            collectedProblems.clear();
+            collectedProblems = null;
         }
 
         // 清除 UI 面板引用
-        if (currentProblemsPanelRef != null) {
-            CathayBkProblemsPanel panel = currentProblemsPanelRef.get();
-            if (panel != null) {
-                Disposer.dispose(panel);
-            }
-            currentProblemsPanelRef = null;
-        }
+        // 注意：不要手動 dispose panel，因為已經通過 content.setDisposer(problemsPanel)
+        // 在第 405 行將 panel 的生命週期綁定到 Content，IntelliJ 會自動管理
+        currentProblemsPanel = null;
 
         // 釋放工具窗口
         if (toolWindow != null) {
             toolWindow.getContentManager().removeAllContents(true);
+
+            // 正確 unregister ToolWindow，避免資源洩漏
+            ToolWindowManager toolWindowManager = ToolWindowManager.getInstance(project);
+            if (toolWindowManager != null) {
+                toolWindowManager.unregisterToolWindow(TOOL_WINDOW_ID);
+            }
+
             toolWindow = null;
         }
-
-        // 強制觸發垃圾回收
-        // System.gc(); // 已移除：手動 GC 會造成所有執行緒暫停
 
         LOG.info("ProblemCollector 已釋放資源");
     }

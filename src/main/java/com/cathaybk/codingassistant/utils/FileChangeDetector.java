@@ -135,7 +135,7 @@ public final class FileChangeDetector implements Disposable {
     /**
      * 從變更集合中篩選出真正有變更的 Java 檔案
      * 這是效能優化的關鍵：只檢查實際變更的檔案
-     * 
+     *
      * @param changes VCS 變更集合
      * @return 已變更的 Java 檔案集合
      */
@@ -145,7 +145,9 @@ public final class FileChangeDetector implements Disposable {
             return Set.of();
         }
 
-        Set<VirtualFile> changedJavaFiles = changes.parallelStream()
+        // 對於小集合使用普通 stream，避免 parallelStream 的開銷
+        // parallelStream 只在大量檔案時才有效益
+        Set<VirtualFile> changedJavaFiles = (changes.size() > 50 ? changes.parallelStream() : changes.stream())
                 .map(this::getAfterRevisionFile)
                 .filter(Objects::nonNull)
                 .filter(this::isJavaFile)
@@ -162,7 +164,8 @@ public final class FileChangeDetector implements Disposable {
      * 用於首次掃描或強制檢查
      */
     public Set<VirtualFile> filterJavaFiles(@NotNull Collection<Change> changes) {
-        return changes.parallelStream()
+        // 對於小集合使用普通 stream，避免 parallelStream 的開銷
+        return (changes.size() > 50 ? changes.parallelStream() : changes.stream())
                 .map(this::getAfterRevisionFile)
                 .filter(Objects::nonNull)
                 .filter(this::isJavaFile)

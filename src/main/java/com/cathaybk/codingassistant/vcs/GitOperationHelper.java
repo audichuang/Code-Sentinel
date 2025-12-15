@@ -164,46 +164,45 @@ public class GitOperationHelper {
                 }
             });
 
-            // 使用更高效的等待機制，避免忙等待
+            // 使用輪詢機制等待，確保快速響應取消操作
+            // 每 100ms 檢查一次，平衡效能和響應性
             Integer exitCode = null;
-            try {
-                // 使用更短的超時時間來檢查取消狀態
-                exitCode = exitCodeFuture.get(100, TimeUnit.MILLISECONDS);
-            } catch (TimeoutException e) {
-                // 超時是正常的，繼續等待但檢查取消狀態
-                while (exitCode == null) {
-                    try {
-                        // 檢查是否取消
-                        if (indicator != null && indicator.isCanceled()) {
-                            LOG.info("用戶取消了 Git fetch 操作");
-                            process.destroyForcibly();
-                            outputThread.interrupt();
-                            return false;
-                        }
-                        
-                        // 使用更短的等待時間來提高響應性
-                        exitCode = exitCodeFuture.get(200, TimeUnit.MILLISECONDS);
-                    } catch (TimeoutException te) {
-                        // 繼續等待
-                        continue;
-                    } catch (InterruptedException ie) {
-                        LOG.error("等待 git fetch 進程時被中斷", ie);
-                        process.destroyForcibly();
-                        outputThread.interrupt();
-                        Thread.currentThread().interrupt();
-                        return false;
-                    }
+            long deadline = System.currentTimeMillis() + (PROCESS_TIMEOUT_SECONDS + 2) * 1000L;
+
+            while (exitCode == null && System.currentTimeMillis() < deadline) {
+                // 優先檢查取消狀態，確保快速響應用戶操作
+                if (indicator != null && indicator.isCanceled()) {
+                    LOG.info("用戶取消了 Git fetch 操作");
+                    exitCodeFuture.cancel(true); // 取消 CompletableFuture
+                    cleanupProcess(process, outputThread);
+                    return false;
                 }
-            } catch (InterruptedException e) {
-                LOG.error("等待 git fetch 進程時被中斷", e);
-                process.destroyForcibly();
-                outputThread.interrupt();
-                Thread.currentThread().interrupt();
-                return false;
-            } catch (ExecutionException e) {
-                LOG.error("Git fetch 進程執行時發生錯誤", e);
-                process.destroyForcibly();
-                outputThread.interrupt();
+
+                try {
+                    // 短暫等待 100ms，避免忙等待但保持響應性
+                    exitCode = exitCodeFuture.get(100, TimeUnit.MILLISECONDS);
+                } catch (TimeoutException e) {
+                    // 單次輪詢超時，繼續下一次輪詢
+                    continue;
+                } catch (InterruptedException e) {
+                    LOG.error("等待 git fetch 進程時被中斷", e);
+                    exitCodeFuture.cancel(true); // 取消 CompletableFuture
+                    cleanupProcess(process, outputThread);
+                    Thread.currentThread().interrupt();
+                    return false;
+                } catch (ExecutionException e) {
+                    LOG.error("Git fetch 進程執行時發生錯誤", e);
+                    exitCodeFuture.cancel(true); // 取消 CompletableFuture
+                    cleanupProcess(process, outputThread);
+                    return false;
+                }
+            }
+
+            // 檢查是否因超時退出循環
+            if (exitCode == null) {
+                LOG.warn("Git fetch 操作超時（等待 " + (PROCESS_TIMEOUT_SECONDS + 2) + " 秒後）");
+                exitCodeFuture.cancel(true); // 取消 CompletableFuture
+                cleanupProcess(process, outputThread);
                 return false;
             }
 
@@ -236,6 +235,67 @@ public class GitOperationHelper {
             LOG.error("執行 git fetch 時發生錯誤", e);
             return false;
         }
+    }
+
+    /**
+     * 清理進程資源，確保所有流被關閉並終止進程
+     *
+     * @param process 要清理的進程
+     * @param outputThread 輸出讀取線程（可能為 null）
+     */
+    private void cleanupProcess(Process process, @Nullable Thread outputThread) {
+        if (process == null) {
+            return;
+        }
+
+        LOG.info("清理進程資源...");
+
+        // 1. 先中斷輸出線程，避免它繼續讀取
+        if (outputThread != null && outputThread.isAlive()) {
+            outputThread.interrupt();
+            try {
+                // 給線程一點時間來響應中斷
+                outputThread.join(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        // 2. 關閉所有進程流
+        try {
+            process.getInputStream().close();
+        } catch (IOException e) {
+            LOG.debug("關閉 InputStream 時發生錯誤: " + e.getMessage());
+        }
+
+        try {
+            process.getErrorStream().close();
+        } catch (IOException e) {
+            LOG.debug("關閉 ErrorStream 時發生錯誤: " + e.getMessage());
+        }
+
+        try {
+            process.getOutputStream().close();
+        } catch (IOException e) {
+            LOG.debug("關閉 OutputStream 時發生錯誤: " + e.getMessage());
+        }
+
+        // 3. 強制終止進程
+        if (process.isAlive()) {
+            process.destroyForcibly();
+            try {
+                // 等待進程真正終止
+                boolean terminated = process.waitFor(2, TimeUnit.SECONDS);
+                if (!terminated) {
+                    LOG.warn("進程未能在 2 秒內終止");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                LOG.warn("等待進程終止時被中斷");
+            }
+        }
+
+        LOG.info("進程資源清理完成");
     }
 
     /**
