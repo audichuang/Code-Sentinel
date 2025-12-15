@@ -1,52 +1,248 @@
 <idea-plugin>
     <id>com.cathaybk.codingassistant</id>
-    <name>CathayBk Coding Assistant</name>
-    <vendor email="support@cathaybk.com" url="https://www.cathaybk.com">CathayBk</vendor>
+    <name>Code Sentinel</name>
+    <version>1.6.0</version>
+    <vendor email="audiapplication880208@gmail.com" url="https://github.com/audichuang">AudiChuang</vendor>
 
     <description><![CDATA[
-    國泰銀行程式碼助手，用於協助開發人員遵循公司的編碼標準和規範。
-    主要功能：
-    - 檢查Controller層API方法是否添加了msgID註解
-    - 自動關聯Controller的API方法與對應的Service實現
-    - 提供程式碼規範檢查並顯示警告
+    <html><body>
+    <h2>Code Sentinel: 您的智能編碼與提交守衛</h2>
+    <p>Code Sentinel 是一款專為 IntelliJ IDEA 設計的開發者助手插件，旨在通過<b>即時程式碼分析</b>和<b>提交前檢查</b>機制，全方位保障您的程式碼品質、統一團隊規範，並顯著提升開發與提交流程的效率。</p>
+
+    <hr/>
+
+    <h3>核心功能</h3>
+    
+    <b>🚀 即時檢查與快速修復 (編碼時)</b>
+    <ul>
+        <li><b>規範哨兵:</b> 在您輸入時，即時捕捉不符合預設規範的程式碼（例如：API MsgID 格式、缺少 Javadoc 等）。</li>
+        <li><b>智能修復:</b> 對檢測到的問題提供上下文感知的快速修復建議 (Quick Fix via Alt+Enter / Option+Enter)，一鍵生成或修正程式碼。</li>
+    </ul>
+
+    <b>🛡️ 提交前守衛 (Git Commit 時 - 可選)</b>
+    <ul>
+        <li><b>Git 分支檢查 (可選):</b> 自動執行 `git fetch` 並比對目標分支，防止基於過時分支提交，降低合併衝突風險。</li>
+        <li><b>程式碼品質門禁 (可選):</b> 全面掃描待提交的程式碼變更，確保符合團隊自訂的程式碼規範。</li>
+        <li><b>問題看板:</b> 在專用工具視窗 ("Code Sentinel 檢查") 清晰列出所有檢查發現的問題點，一目了然。</li>
+        <li><b>批量修復 ("Fix All"):</b> 提供強大的 "一鍵修復" 功能，嘗試自動修正所有可修復的問題，節省您的寶貴時間。</li>
+    </ul>
+    
+    <b>💡 智能輔助</b>
+    <ul>
+        <li><b>Javadoc 生成器 (可選):</b> 自動為方法或類別生成 Javadoc 註解。支持生成包含完整標籤 (<code>@param</code>, <code>@return</code>) 的結構，或僅包含核心描述的最小結構，可在設定中切換。</li>
+    </ul>
+
+    <hr/>
+
+    <h3>高度可配置</h3>
+    <p>您可以根據團隊或個人需求，在 <code>Settings &gt; Tools &gt; Code Sentinel 設定</code> 中靈活配置：</p>
+    <ul>
+        <li>啟用/禁用 Git 分支檢查</li>
+        <li>啟用/禁用提交前的程式碼規範檢查</li>
+        <li>選擇 Javadoc 的生成風格 (完整/最小)</li>
+        <li>設定需要檢查的目標分支</li>
+    </ul>
+
+    <p>讓 Code Sentinel 成為您編碼過程中的得力助手和品質守護者！</p>
+
+    </body></html>
     ]]></description>
 
+    <change-notes><![CDATA[
+    <b>v1.6.0 - Search Everywhere API 整合與穩定性提升</b>
+    <ul>
+        <li><b>新功能：Search Everywhere API 搜尋整合</b>
+            <ul>
+                <li>在 Shift+Shift 對話框中新增「APIs」分頁</li>
+                <li>支援 MSGID、路徑、描述的模糊搜尋</li>
+                <li>智能權重排序（完全匹配 > 前綴匹配 > 包含匹配）</li>
+            </ul>
+        </li>
+        <li><b>新功能：API 依賴預覽增強</b>
+            <ul>
+                <li>區分直接依賴與遞迴依賴檔案</li>
+                <li>改進依賴分析視覺化</li>
+            </ul>
+        </li>
+        <li><b>效能與穩定性</b>
+            <ul>
+                <li>修正 PSI 存取缺少 ReadAction 包裝的執行緒安全問題</li>
+                <li>修正 Action 執行緒模式，改為 EDT 以符合 IntelliJ 規範</li>
+                <li>改善 Modal Dialog 中的 UI 更新，加入 ModalityState 支援</li>
+            </ul>
+        </li>
+        <li><b>記憶體洩漏修復</b>
+            <ul>
+                <li>強化 Dialog 和 ToolWindow 的 disposed 狀態檢查</li>
+                <li>優化快取清理機制</li>
+                <li>修復多處潛在記憶體洩漏</li>
+            </ul>
+        </li>
+        <li><b>建構系統</b>
+            <ul>
+                <li>升級 Gradle wrapper 至 9.2.1</li>
+                <li>升級 IntelliJ Platform Plugin 至 2.10.5</li>
+            </ul>
+        </li>
+        <li><b>程式碼品質</b>
+            <ul>
+                <li>重構內部類別名稱以提高可讀性</li>
+                <li>移除未使用的 import，提升程式碼品質</li>
+                <li>更新 toolWindow icon 格式，提高相容性</li>
+            </ul>
+        </li>
+    </ul>
+    <br/>
+    <b>v1.5.0 - Service 電文代號支援與效能優化</b>
+    <ul>
+        <li>新增 Service 類別與方法的電文代號檢查功能</li>
+        <li>支援 Service 介面與實現類的自動識別（Svc/SvcImpl）</li>
+        <li>實作 PSI 檢查結果緩存機制（InspectionCacheManager）</li>
+        <li>添加記憶體壓力監聽和自動調整機制</li>
+        <li>所有主要類別實作 Disposable 介面防止記憶體洩漏</li>
+    </ul>
+    <br/>
+    <b>v1.4.0</b>
+    <ul>
+        <li>優化記憶體資源使用，減少資源洩漏風險。</li>
+        <li>改善 PSI 元素處理邏輯，提高穩定性。</li>
+        <li>為主要工具類實現批次處理和緩存機制。</li>
+        <li>強化資源釋放機制，避免長時間運行時效能衰退。</li>
+        <li>低記憶體環境下自動調整工作模式，提高適應性。</li>
+    </ul>
+    <br/>
+    <b>v1.3.0</b>
+    <ul>
+        <li>插件更名為 "Code Sentinel"。</li>
+        <li>新增設定選項：可開關 Git 分支落後檢查。</li>
+        <li>新增設定選項：可開關程式碼規範檢查。</li>
+        <li>新增設定選項：可配置 Javadoc 生成方式 (完整/最小)。</li>
+        <li>設定頁面 UI 優化，分區顯示並加入範例說明。</li>
+        <li>增強設定中目標分支名稱的驗證規則。</li>
+        <li>移除設定成功時的冗餘提示彈窗。</li>
+        <li>修復 Javadoc 生成中的換行符問題。</li>
+        <li>(舊) 問題面板界面優化，移除搜尋框，修復 HTML 顯示問題，提高檢查執行效率。</li> 
+    </ul>
+    <br/>
+    <b>v1.2.0</b>
+    <ul>
+        <li>增加對25.1版本的支持，新增bean加入註解功能</li>
+    </ul>
+    <br/>
+    <b>v1.1.0</b>
+    <ul>
+        <li>優化效能，修正已知問題，改善使用者體驗</li>
+    </ul>
+    <br/>
+    <b>v1.0.0</b>
+    <ul>
+        <li>初始版本，提供API註解檢查和Service關聯功能</li>
+    </ul>
+    ]]></change-notes>
+
+    <!-- 更新 until-build 到一個較新的版本或保持通用 -->
+    <idea-version since-build="252"/>
+
+    <!-- 依賴關係 -->
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.java</depends>
 
     <extensions defaultExtensionNs="com.intellij">
-        <!-- 添加自定義檢查器 -->
-        <localInspection language="JAVA" 
-                         displayName="API MsgID檢查" 
-                         groupName="CathayBk規範檢查" 
-                         enabledByDefault="true" 
+        <!-- Notification group for Code Sentinel -->
+        <notificationGroup id="Code Sentinel" 
+                          displayType="BALLOON"/>
+        
+        <!-- 1. 原有的 API MsgID 檢查器 -->
+        <localInspection language="JAVA"
+                         displayName="API MsgID檢查"
+                         groupName="Code Sentinel"
+                         enabledByDefault="true"
                          level="WARNING"
                          shortName="ApiMsgIdInspection"
                          implementationClass="com.cathaybk.codingassistant.inspection.ApiMsgIdInspection"/>
-                         
-        <!-- 添加Service關聯檢查器 -->
-        <localInspection language="JAVA" 
-                         displayName="Service關聯檢查" 
-                         groupName="CathayBk規範檢查" 
-                         enabledByDefault="true" 
+
+        <!-- ======================================== -->
+        <!-- 2. 新增的 注入欄位 Javadoc 檢查器        -->
+        <!--    (所有註解都已移到標籤外部)          -->
+        <!-- ======================================== -->
+        <localInspection language="JAVA"
+                         displayName="注入的欄位缺少 Javadoc"
+                         groupName="Code Sentinel"
+                         enabledByDefault="true"
                          level="WARNING"
-                         shortName="ServiceLinkInspection"
-                         implementationClass="com.cathaybk.codingassistant.inspection.ServiceLinkInspection"/>
-                         
-        <!-- 註冊同步電文代號到相關類的意圖動作 -->
+                         shortName="InjectedFieldJavadocInspection"
+                         implementationClass="com.cathaybk.codingassistant.inspection.InjectedFieldJavadocInspection"/>
+
+        <!-- ======================================== -->
+        <!-- 5. 新增創建 DTO 模板的 Intention        -->
+        <!-- ======================================== -->
         <intentionAction>
-            <className>com.cathaybk.codingassistant.actions.SyncApiIdAction</className>
-            <category>CathayBk 開發助手</category>
+            <className>com.cathaybk.codingassistant.intention.CreateDtoIntentionAction</className>
+            <category>Code Sentinel/模板生成</category> <!-- 分類會顯示在 Intention 設定中 -->
         </intentionAction>
+
+        <!-- ======================================== -->
+        <!-- 3. 新增 Commit 前檢查處理器           -->
+        <!-- ======================================== -->
+        <checkinHandlerFactory implementation="com.cathaybk.codingassistant.vcs.PreCommitInspectionHandlerFactory"/>
+
+        <!-- ======================================== -->
+        <!-- 4. 新增 Git 設置組件                   -->
+        <!-- ======================================== -->
+        <projectService serviceImplementation="com.cathaybk.codingassistant.settings.GitSettings"/>
+        <applicationConfigurable 
+                             groupId="tools" 
+                             instance="com.cathaybk.codingassistant.settings.GitSettingsConfigurable"
+                             id="com.cathaybk.codingassistant.settings.GitSettingsConfigurable" 
+                             displayName="Code Sentinel"/>
+        
+        <!-- ======================================== -->
+        <!-- 5. 新增緩存管理器服務                   -->
+        <!-- ======================================== -->
+        <projectService serviceImplementation="com.cathaybk.codingassistant.cache.InspectionCacheManager"/>
+
+        <!-- ======================================== -->
+        <!-- 6. API 複製功能服務                      -->
+        <!-- ======================================== -->
+        <projectService serviceImplementation="com.cathaybk.codingassistant.apicopy.service.ApiIndexService"/>
+        <projectService serviceImplementation="com.cathaybk.codingassistant.apicopy.service.ApiCopyService"/>
+
+        <!-- ======================================== -->
+        <!-- 7. API 搜尋工具視窗                      -->
+        <!-- ======================================== -->
+        <toolWindow id="API 搜尋"
+                    anchor="right"
+                    factoryClass="com.cathaybk.codingassistant.apicopy.ui.ApiSearchToolWindowFactory"/>
+
+        <!-- ======================================== -->
+        <!-- 8. Search Everywhere API 搜尋整合        -->
+        <!-- ======================================== -->
+        <searchEverywhereContributor
+                implementation="com.cathaybk.codingassistant.apicopy.searcheverywhere.ApiSearchEverywhereContributorFactory"/>
+
     </extensions>
 
+    <!-- ======================================== -->
+    <!-- Actions                                  -->
+    <!-- ======================================== -->
     <actions>
-        <!-- 添加生成相關代碼的Action -->
-        <action id="com.cathaybk.codingassistant.actions.GenerateApiStructureAction" 
-                class="com.cathaybk.codingassistant.actions.GenerateApiStructureAction" 
-                text="生成API結構" 
-                description="生成API相關的Service和實現類">
-            <add-to-group group-id="GenerateGroup" anchor="last"/>
+        <!-- API 複製 Action 群組 -->
+        <group id="CodeSentinel.ApiCopyGroup" text="Code Sentinel" popup="true">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+
+            <action id="CodeSentinel.CopyFullApiAction"
+                    class="com.cathaybk.codingassistant.apicopy.action.CopyFullApiAction"
+                    text="複製完整 API 程式碼"
+                    description="複製此 API 的所有相關檔案到剪貼簿"/>
+        </group>
+
+        <!-- 工具選單中的 Action -->
+        <action id="CodeSentinel.OpenApiSearchAction"
+                class="com.cathaybk.codingassistant.apicopy.action.OpenApiSearchAction"
+                text="開啟 API 搜尋"
+                description="開啟 API 搜尋工具視窗">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt A"/>
         </action>
     </actions>
 </idea-plugin>

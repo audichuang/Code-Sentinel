@@ -5,6 +5,9 @@
 *.iws
 *.ipr
 out/
+.vscode/
+.intellijPlatform
+qodana.yaml
 
 # Gradle
 .gradle/
@@ -28,4 +31,6 @@ Desktop.ini
 
 # Generated files
 bin/
-gen/ 
+gen/
+intellij-platform-gradle-plugin-*/
+.gradle-user-home

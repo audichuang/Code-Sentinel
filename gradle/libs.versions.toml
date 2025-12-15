@@ -1,0 +1,25 @@
+[versions]
+# Libraries
+jackson = "2.19.0"
+lombok = "1.18.38"
+junit = "5.10.2"
+
+# Plugins
+intellijPlatform = "2.7.2"
+lombok-plugin = "8.6"
+
+[libraries]
+jackson-core = { group = "com.fasterxml.jackson.core", name = "jackson-core", version.ref = "jackson" }
+jackson-databind = { group = "com.fasterxml.jackson.core", name = "jackson-databind", version.ref = "jackson" }
+jackson-annotations = { group = "com.fasterxml.jackson.core", name = "jackson-annotations", version.ref = "jackson" }
+lombok = { group = "org.projectlombok", name = "lombok", version.ref = "lombok" }
+junit-api = { group = "org.junit.jupiter", name = "junit-jupiter-api", version.ref = "junit" }
+junit-engine = { group = "org.junit.jupiter", name = "junit-jupiter-engine", version.ref = "junit" }
+
+[plugins]
+intellij-platform = { id = "org.jetbrains.intellij.platform", version.ref = "intellijPlatform" }
+lombok = { id = "io.freefair.lombok", version.ref = "lombok-plugin" }
+
+[bundles]
+jackson = ["jackson-core", "jackson-databind", "jackson-annotations"]
+junit = ["junit-api", "junit-engine"]
