@@ -171,6 +171,12 @@
                     anchor="right"
                     factoryClass="com.cathaybk.codingassistant.apicopy.ui.ApiSearchToolWindowFactory"/>
 
+        <!-- ======================================== -->
+        <!-- 8. Search Everywhere API 搜尋整合        -->
+        <!-- ======================================== -->
+        <searchEverywhereContributor
+                implementation="com.cathaybk.codingassistant.apicopy.searcheverywhere.ApiSearchEverywhereContributorFactory"/>
+
     </extensions>
 
     <!-- ======================================== -->

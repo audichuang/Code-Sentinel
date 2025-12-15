@@ -98,6 +98,12 @@ public final class ApiIndexService implements Disposable {
                     PsiMethod method = api.getMethod();
                     if (method != null && method.getName().toLowerCase().contains(lowerKeyword)) {
                         results.add(api);
+                        continue;
+                    }
+                    // 搜尋路徑
+                    if (api.getPath() != null &&
+                        api.getPath().toLowerCase().contains(lowerKeyword)) {
+                        results.add(api);
                     }
                 }
             }
@@ -210,15 +216,20 @@ public final class ApiIndexService implements Disposable {
         for (PsiMethod method : controller.getMethods()) {
             if (isApiMethod(method)) {
                 String msgId = extractMsgId(method);
-                if (msgId != null) {
-                    String description = extractDescription(method);
-                    String httpMethod = extractHttpMethod(method);
-                    String path = extractPath(method, controller);
 
-                    ApiInfo apiInfo = new ApiInfo(
-                            msgId, description, httpMethod, path, method, controller);
-                    apiCache.put(msgId, new SoftReference<>(apiInfo));
+                // 如果沒有 MSGID，使用 ControllerName.methodName 作為識別碼
+                if (msgId == null) {
+                    String className = controller.getName() != null ? controller.getName() : "Unknown";
+                    msgId = className + "." + method.getName();
                 }
+
+                String description = extractDescription(method);
+                String httpMethod = extractHttpMethod(method);
+                String path = extractPath(method, controller);
+
+                ApiInfo apiInfo = new ApiInfo(
+                        msgId, description, httpMethod, path, method, controller);
+                apiCache.put(msgId, new SoftReference<>(apiInfo));
             }
         }
     }
