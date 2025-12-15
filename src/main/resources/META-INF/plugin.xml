@@ -88,7 +88,7 @@
     ]]></change-notes>
 
     <!-- 更新 until-build 到一個較新的版本或保持通用 -->
-    <idea-version since-build="231"/>
+    <idea-version since-build="252"/>
 
     <!-- 依賴關係 -->
     <depends>com.intellij.modules.platform</depends>
@@ -148,5 +148,43 @@
         <!-- ======================================== -->
         <projectService serviceImplementation="com.cathaybk.codingassistant.cache.InspectionCacheManager"/>
 
+        <!-- ======================================== -->
+        <!-- 6. API 複製功能服務                      -->
+        <!-- ======================================== -->
+        <projectService serviceImplementation="com.cathaybk.codingassistant.apicopy.service.ApiIndexService"/>
+        <projectService serviceImplementation="com.cathaybk.codingassistant.apicopy.service.ApiCopyService"/>
+
+        <!-- ======================================== -->
+        <!-- 7. API 搜尋工具視窗                      -->
+        <!-- ======================================== -->
+        <toolWindow id="API 搜尋"
+                    anchor="right"
+                    factoryClass="com.cathaybk.codingassistant.apicopy.ui.ApiSearchToolWindowFactory"
+                    icon="AllIcons.Actions.Search"/>
+
     </extensions>
+
+    <!-- ======================================== -->
+    <!-- Actions                                  -->
+    <!-- ======================================== -->
+    <actions>
+        <!-- API 複製 Action 群組 -->
+        <group id="CodeSentinel.ApiCopyGroup" text="Code Sentinel" popup="true">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+
+            <action id="CodeSentinel.CopyFullApiAction"
+                    class="com.cathaybk.codingassistant.apicopy.action.CopyFullApiAction"
+                    text="複製完整 API 程式碼"
+                    description="複製此 API 的所有相關檔案到剪貼簿"/>
+        </group>
+
+        <!-- 工具選單中的 Action -->
+        <action id="CodeSentinel.OpenApiSearchAction"
+                class="com.cathaybk.codingassistant.apicopy.action.OpenApiSearchAction"
+                text="開啟 API 搜尋"
+                description="開啟 API 搜尋工具視窗">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt A"/>
+        </action>
+    </actions>
 </idea-plugin>

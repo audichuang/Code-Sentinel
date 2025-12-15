@@ -256,12 +256,15 @@ public class CathayBkInspectionUtil {
 
     /**
      * 判斷一個欄位是否可能是依賴注入的。
-     * (從 InjectedFieldJavadocInspection 移過來)
+     * 支援：
+     * - @Autowired, @Inject, @Resource, @Qualifier 注解
+     * - Lombok @RequiredArgsConstructor 搭配 final 欄位
+     * - Spring 元件中的 final 欄位
      *
      * @param field 要檢查的欄位
      * @return 如果欄位可能是注入的，返回 true
      */
-    private static boolean isLikelyInjectedField(@NotNull PsiField field) {
+    public static boolean isLikelyInjectedField(@NotNull PsiField field) {
         PsiClass containingClass = field.getContainingClass();
         if (containingClass == null || containingClass.isInterface() || containingClass.isAnnotationType()) {
             return false; // 不檢查介面或註解中的欄位
