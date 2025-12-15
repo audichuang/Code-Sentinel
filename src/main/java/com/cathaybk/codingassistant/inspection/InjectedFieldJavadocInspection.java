@@ -2,7 +2,7 @@ package com.cathaybk.codingassistant.inspection;
 
 import com.cathaybk.codingassistant.common.ProblemInfo;
 import com.cathaybk.codingassistant.fix.AddFieldJavadocFix;
-import com.cathaybk.codingassistant.util.CathayBkInspectionUtil;
+import com.cathaybk.codingassistant.util.CodeInspectionUtil;
 import com.intellij.codeInspection.AbstractBaseJavaLocalInspectionTool;
 import com.intellij.codeInspection.ProblemsHolder;
 import com.intellij.psi.JavaElementVisitor;
@@ -16,7 +16,7 @@ import com.intellij.openapi.progress.ProgressManager;
 import java.util.List;
 
 /**
- * 檢查注入的欄位是否缺少 Javadoc 註解。(委託 CathayBkInspectionUtil 執行檢查)
+ * 檢查注入的欄位是否缺少 Javadoc 註解。(委託 CodeInspectionUtil 執行檢查)
  */
 public class InjectedFieldJavadocInspection extends AbstractBaseJavaLocalInspectionTool {
 
@@ -63,7 +63,7 @@ public class InjectedFieldJavadocInspection extends AbstractBaseJavaLocalInspect
                 // 合併 ReadAction 調用以提高效能
                 // 同時獲取問題列表和欄位類型名稱
                 ReadAction.run(() -> {
-                    List<ProblemInfo> problems = CathayBkInspectionUtil.checkInjectedFieldDoc(field);
+                    List<ProblemInfo> problems = CodeInspectionUtil.checkInjectedFieldDoc(field);
 
                     if (problems.isEmpty()) {
                         return;
@@ -90,5 +90,5 @@ public class InjectedFieldJavadocInspection extends AbstractBaseJavaLocalInspect
         };
     }
 
-    // isLikelyInjectedField 方法已移到 CathayBkInspectionUtil
+    // isLikelyInjectedField 方法已移到 CodeInspectionUtil
 }

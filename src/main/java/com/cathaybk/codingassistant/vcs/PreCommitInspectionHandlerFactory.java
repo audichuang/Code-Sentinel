@@ -9,20 +9,20 @@ import com.intellij.openapi.vcs.checkin.CheckinHandlerFactory;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Factory for creating CathayBkCheckinHandler instances.
+ * Factory for creating PreCommitInspectionHandler instances.
  */
-public class CathayBkCheckinHandlerFactory extends CheckinHandlerFactory {
-    private static final Logger LOG = Logger.getInstance(CathayBkCheckinHandlerFactory.class);
+public class PreCommitInspectionHandlerFactory extends CheckinHandlerFactory {
+    private static final Logger LOG = Logger.getInstance(PreCommitInspectionHandlerFactory.class);
 
     @NotNull
     @Override
     public CheckinHandler createHandler(@NotNull CheckinProjectPanel panel, @NotNull CommitContext commitContext) {
-        LOG.info("CathayBk Checkin Handler Factory 被呼叫！項目：" + panel.getProject().getName() +
+        LOG.info("PreCommitInspectionHandlerFactory 被呼叫！項目：" + panel.getProject().getName() +
                 ", 變更數量：" + panel.getSelectedChanges().size());
 
         // Create and return the handler for the commit process
-        CathayBkCheckinHandler handler = new CathayBkCheckinHandler(panel);
-        LOG.debug("成功創建 CathayBkCheckinHandler");
+        PreCommitInspectionHandler handler = new PreCommitInspectionHandler(panel);
+        LOG.debug("成功創建 PreCommitInspectionHandler");
         return handler;
     }
 }

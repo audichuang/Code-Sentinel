@@ -4,7 +4,7 @@ import com.cathaybk.codingassistant.common.ProblemInfo;
 import com.cathaybk.codingassistant.fix.AddApiIdDocFix;
 import com.cathaybk.codingassistant.fix.AddControllerApiIdFromServiceFix;
 import com.cathaybk.codingassistant.fix.AddServiceApiIdQuickFix;
-import com.cathaybk.codingassistant.util.CathayBkInspectionUtil;
+import com.cathaybk.codingassistant.util.CodeInspectionUtil;
 import com.intellij.codeInspection.AbstractBaseJavaLocalInspectionTool;
 import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemsHolder;
@@ -21,7 +21,7 @@ import java.util.List;
 // import java.util.*; // 可能不再需要
 
 /**
- * API 電文代號檢查器。 (委託 CathayBkInspectionUtil 執行檢查)
+ * API 電文代號檢查器。 (委託 CodeInspectionUtil 執行檢查)
  * <p>
  * 此檢查器用於驗證專案中的 Java 程式碼是否符合電文代號 (ApiMsgId) 的 Javadoc 註解規範。
  * </p>
@@ -62,7 +62,7 @@ public class ApiMsgIdInspection extends AbstractBaseJavaLocalInspectionTool {
                 ProgressManager.checkCanceled();
 
                 // 在 ReadAction 中執行 PSI 操作（優化線程安全）
-                List<ProblemInfo> problems = ReadAction.compute(() -> CathayBkInspectionUtil.checkApiMethodDoc(method));
+                List<ProblemInfo> problems = ReadAction.compute(() -> CodeInspectionUtil.checkApiMethodDoc(method));
 
                 // 根據 Util 返回的問題註冊 ProblemDescriptor
                 for (ProblemInfo problem : problems) {
@@ -93,7 +93,7 @@ public class ApiMsgIdInspection extends AbstractBaseJavaLocalInspectionTool {
 
                 // 在 ReadAction 中執行 PSI 操作
                 List<ProblemInfo> problems = ReadAction
-                        .compute(() -> CathayBkInspectionUtil.checkServiceClassDoc(aClass));
+                        .compute(() -> CodeInspectionUtil.checkServiceClassDoc(aClass));
 
                 // 根據 Util 返回的問題註冊 ProblemDescriptor
                 for (ProblemInfo problem : problems) {

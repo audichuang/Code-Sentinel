@@ -7,7 +7,7 @@ import com.cathaybk.codingassistant.fix.AddControllerApiIdFromServiceFix;
 import com.cathaybk.codingassistant.fix.AddFieldJavadocFix;
 import com.cathaybk.codingassistant.fix.AddServiceApiIdQuickFix;
 import com.cathaybk.codingassistant.fix.AddServiceClassApiIdDocFix;
-import com.cathaybk.codingassistant.util.CathayBkInspectionUtil;
+import com.cathaybk.codingassistant.util.CodeInspectionUtil;
 import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.codeInspection.ProblemHighlightType;
@@ -68,7 +68,7 @@ public class ProblemCollector implements Disposable {
     // 使用強引用存儲問題列表，在 dispose 時清理
     // 避免 WeakReference 在 GC 時被意外回收導致結果丟失
     private List<ProblemInfo> collectedProblems;
-    private CathayBkProblemsPanel currentProblemsPanel;
+    private InspectionProblemsPanel currentProblemsPanel;
     // 保存工具窗口的參考
     private ToolWindow toolWindow;
 
@@ -238,7 +238,7 @@ public class ProblemCollector implements Disposable {
                                             super.visitClass(aClass);
                                             if (indicator.isCanceled())
                                                 return;
-                                            fileProblems.addAll(CathayBkInspectionUtil.checkServiceClassDoc(aClass));
+                                            fileProblems.addAll(CodeInspectionUtil.checkServiceClassDoc(aClass));
                                         } catch (ProcessCanceledException e) {
                                             throw e; // 重新拋出取消異常
                                         } catch (Exception e) {
@@ -256,9 +256,9 @@ public class ProblemCollector implements Disposable {
                                             super.visitMethod(method);
                                             if (indicator.isCanceled())
                                                 return;
-                                            fileProblems.addAll(CathayBkInspectionUtil.checkApiMethodDoc(method));
+                                            fileProblems.addAll(CodeInspectionUtil.checkApiMethodDoc(method));
                                             // 同時檢查 Service 方法
-                                            fileProblems.addAll(CathayBkInspectionUtil.checkServiceMethodDoc(method));
+                                            fileProblems.addAll(CodeInspectionUtil.checkServiceMethodDoc(method));
                                         } catch (ProcessCanceledException e) {
                                             throw e;
                                         } catch (Exception e) {
@@ -276,7 +276,7 @@ public class ProblemCollector implements Disposable {
                                             super.visitField(field);
                                             if (indicator.isCanceled())
                                                 return;
-                                            fileProblems.addAll(CathayBkInspectionUtil.checkInjectedFieldDoc(field));
+                                            fileProblems.addAll(CodeInspectionUtil.checkInjectedFieldDoc(field));
                                         } catch (ProcessCanceledException e) {
                                             throw e;
                                         } catch (Exception e) {
@@ -387,7 +387,7 @@ public class ProblemCollector implements Disposable {
             }
 
             // 創建問題面板
-            CathayBkProblemsPanel problemsPanel = new CathayBkProblemsPanel(project, problems);
+            InspectionProblemsPanel problemsPanel = new InspectionProblemsPanel(project, problems);
             currentProblemsPanel = problemsPanel;
 
             // 設置監聽器
@@ -421,7 +421,7 @@ public class ProblemCollector implements Disposable {
     }
 
     private void applySelectedQuickFix() {
-        CathayBkProblemsPanel panel = currentProblemsPanel;
+        InspectionProblemsPanel panel = currentProblemsPanel;
         if (panel == null) {
             LOG.warn("Problem panel is not available for quick fix.");
             return;
@@ -465,7 +465,7 @@ public class ProblemCollector implements Disposable {
                             + ReadAction.compute(() -> element.getText()));
 
                     // 更新 UI
-                    CathayBkProblemsPanel currentPanel = currentProblemsPanel;
+                    InspectionProblemsPanel currentPanel = currentProblemsPanel;
                     if (currentPanel != null) {
                         currentPanel.removeProblem(problem);
                         updateToolWindowContentTitle();
@@ -592,7 +592,7 @@ public class ProblemCollector implements Disposable {
 
             ApplicationManager.getApplication().invokeLater(() -> {
                 // 更新 UI
-                CathayBkProblemsPanel panel = currentProblemsPanel;
+                InspectionProblemsPanel panel = currentProblemsPanel;
                 if (panel != null) {
                     panel.refreshProblems(problems);
                 }
@@ -628,7 +628,7 @@ public class ProblemCollector implements Disposable {
 
         if (content != null) {
             int count = 0;
-            CathayBkProblemsPanel panel = currentProblemsPanel;
+            InspectionProblemsPanel panel = currentProblemsPanel;
             if (panel != null) {
                 List<ProblemInfo> currentProblems = panel.getCurrentProblems();
                 count = currentProblems != null ? currentProblems.size() : 0;

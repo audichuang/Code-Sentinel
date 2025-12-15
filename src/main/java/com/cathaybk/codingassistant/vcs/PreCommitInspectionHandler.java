@@ -51,8 +51,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 處理提交前的檢查邏輯
  * 實作 Disposable 以確保資源正確釋放
  */
-public class CathayBkCheckinHandler extends CheckinHandler implements Disposable {
-    private static final Logger LOG = Logger.getInstance(CathayBkCheckinHandler.class);
+public class PreCommitInspectionHandler extends CheckinHandler implements Disposable {
+    private static final Logger LOG = Logger.getInstance(PreCommitInspectionHandler.class);
     private static final String TOOL_WINDOW_ID = "Code Sentinel 檢查";
     private static final String SETTING_TITLE_NAME = "Code Sentinel";
 
@@ -62,18 +62,18 @@ public class CathayBkCheckinHandler extends CheckinHandler implements Disposable
     private final CheckinDialogHelper dialogHelper;
     private final ProblemCollector problemCollector;
     private List<ProblemInfo> collectedProblems;
-    private CathayBkProblemsPanel currentProblemsPanel;
+    private InspectionProblemsPanel currentProblemsPanel;
     // 用於異步操作的標記
     private final AtomicBoolean gitCheckInProgress = new AtomicBoolean(false);
 
-    public CathayBkCheckinHandler(CheckinProjectPanel panel) {
-        LOG.info("CathayBk Checkin Handler 建構函式被呼叫！");
+    public PreCommitInspectionHandler(CheckinProjectPanel panel) {
+        LOG.info("PreCommitInspectionHandler 建構函式被呼叫！");
         this.panel = panel;
         this.project = panel.getProject();
         this.gitHelper = new GitOperationHelper(project);
         this.dialogHelper = new CheckinDialogHelper(project);
         this.problemCollector = new ProblemCollector(project);
-        
+
         // 註冊為 Disposable 以確保在適當時機被清理
         if (project != null && !project.isDisposed()) {
             Disposer.register(project, this);
@@ -104,7 +104,7 @@ public class CathayBkCheckinHandler extends CheckinHandler implements Disposable
 
     @Override
     public ReturnResult beforeCheckin() {
-        LOG.info("CathayBk Checkin Handler beforeCheckin 被呼叫！");
+        LOG.info("PreCommitInspectionHandler beforeCheckin 被呼叫！");
 
         // 讀取 Git 檢查設定
         GitSettings settings = GitSettings.getInstance(project);
@@ -164,49 +164,6 @@ public class CathayBkCheckinHandler extends CheckinHandler implements Disposable
 
             // 方案1：使用改進後的同步方法（仍會在EDT上阻塞一點時間，但不應該太久）
             boolean fetchSuccess = gitHelper.performGitFetch();
-
-            /* 方案2：使用完全異步方法，但需要修改CheckinHandler邏輯
-            final CompletableFuture<ReturnResult> future = new CompletableFuture<>();
-
-            // 設置標記表示Git檢查正在進行中
-            gitCheckInProgress.set(true);
-
-            // 在背景執行 Git Fetch
-            gitHelper.performGitFetchInBackground(success -> {
-                // Git Fetch 完成後的處理
-                if (success) {
-                    LOG.info("Git fetch 成功執行");
-
-                    // 檢查分支是否落後
-                    List<String> behindBranches = gitHelper.checkBranchStatus();
-                    String currentBranch = gitHelper.getCurrentBranch();
-
-                    // 檢查是否需要顯示分支落後提示
-                    if (!behindBranches.isEmpty() && dialogHelper.showBranchBehindDialog(currentBranch, behindBranches)) {
-                        LOG.info("用戶選擇取消提交");
-                        future.complete(ReturnResult.CANCEL);
-                    } else {
-                        future.complete(ReturnResult.COMMIT);
-                    }
-                } else {
-                    LOG.warn("Git fetch 執行失敗");
-
-                    // 如果 Git 操作失敗，詢問用戶是否繼續
-                    if (dialogHelper.showGitFetchFailedDialog()) {
-                        LOG.info("用戶選擇在 Git fetch 失敗後取消提交");
-                        future.complete(ReturnResult.CANCEL);
-                    } else {
-                        future.complete(ReturnResult.COMMIT);
-                    }
-                }
-
-                // 清除標記
-                gitCheckInProgress.set(false);
-            });
-
-            // 這種情況需要在CheckinHandler層面做較大修改，不適合直接返回result
-            // 所以這只是一個示例，實際使用需要更多適配工作
-            */
 
             if (fetchSuccess) {
                 LOG.info("Git fetch 成功執行");
@@ -269,7 +226,7 @@ public class CathayBkCheckinHandler extends CheckinHandler implements Disposable
             toolWindow.setStripeTitle(SETTING_TITLE_NAME);
         }
 
-        currentProblemsPanel = new CathayBkProblemsPanel(project, problems);
+        currentProblemsPanel = new InspectionProblemsPanel(project, problems);
 
         currentProblemsPanel.setQuickFixListener(e -> applySelectedQuickFix());
         currentProblemsPanel.setFixAllListener(e -> applyAllQuickFixes());
@@ -338,7 +295,7 @@ public class CathayBkCheckinHandler extends CheckinHandler implements Disposable
             }
 
             ProblemDescriptor dummyDescriptor = createDummyDescriptor(element, problem.getDescription());
-            
+
             // 在 WriteAction 中執行修復
             ApplicationManager.getApplication().invokeLater(() -> {
                 WriteCommandAction.runWriteCommandAction(project, fixToApply.getName(), null, () -> {
@@ -562,7 +519,7 @@ public class CathayBkCheckinHandler extends CheckinHandler implements Disposable
 
             @Override
             public int getLineNumber() {
-                return CathayBkCheckinHandler.getLineNumber(project, element);
+                return PreCommitInspectionHandler.getLineNumber(project, element);
             }
 
             @NotNull
@@ -608,10 +565,10 @@ public class CathayBkCheckinHandler extends CheckinHandler implements Disposable
             }
         };
     }
-    
+
     @Override
     public void dispose() {
-        LOG.info("CathayBkCheckinHandler dispose 被呼叫");
+        LOG.info("PreCommitInspectionHandler dispose 被呼叫");
 
         // 清理 ToolWindow 參考
         if (currentProblemsPanel != null) {
@@ -644,6 +601,6 @@ public class CathayBkCheckinHandler extends CheckinHandler implements Disposable
             }
         }
 
-        LOG.info("CathayBkCheckinHandler 資源已釋放");
+        LOG.info("PreCommitInspectionHandler 資源已釋放");
     }
 }

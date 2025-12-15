@@ -51,9 +51,9 @@ import java.util.stream.Collectors;
  * 用於顯示 Code Sentinel 檢查問題的 UI 面板。
  * 提供問題列表的樹狀視圖，並允許用戶查看詳細信息和導航到程式碼。
  */
-public class CathayBkProblemsPanel extends JPanel implements com.intellij.openapi.Disposable {
+public class InspectionProblemsPanel extends JPanel implements com.intellij.openapi.Disposable {
 
-    private static final Logger LOG = Logger.getInstance(CathayBkProblemsPanel.class);
+    private static final Logger LOG = Logger.getInstance(InspectionProblemsPanel.class);
     private static final int HTML_BUFFER_SIZE = 1024;
     private static final int MAX_DETAIL_TEXT_LENGTH = 80;
 
@@ -78,7 +78,7 @@ public class CathayBkProblemsPanel extends JPanel implements com.intellij.openap
     private final List<MouseListener> registeredMouseListeners = new ArrayList<>();
     private final List<TreeSelectionListener> registeredTreeListeners = new ArrayList<>();
 
-    public CathayBkProblemsPanel(Project project, List<ProblemInfo> problems) {
+    public InspectionProblemsPanel(Project project, List<ProblemInfo> problems) {
         super(new BorderLayout());
         this.projectRef = new WeakReference<>(project);
         // 創建不可變副本避免外部修改
@@ -254,7 +254,7 @@ public class CathayBkProblemsPanel extends JPanel implements com.intellij.openap
 
         JPanel leftPanel = new JPanel(new BorderLayout());
         leftPanel.setBackground(UIUtil.getPanelBackground());
-        
+
         // 使用 JBLabel 替代 JLabel
         JBLabel treeTitle = new JBLabel("問題列表（單擊查看詳情，雙擊跳轉到代碼）");
         treeTitle.setBorder(JBUI.Borders.empty(5, 8));
@@ -323,7 +323,7 @@ public class CathayBkProblemsPanel extends JPanel implements com.intellij.openap
                         new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "quickFixSelected"));
             }
         });
-        
+
         // 使用 IntelliJ 的按鈕樣式
         fixAllButton.putClientProperty("JButton.buttonType", "segmented-only");
         quickFixButton.putClientProperty("JButton.buttonType", "segmented-only");
@@ -862,7 +862,7 @@ public class CathayBkProblemsPanel extends JPanel implements com.intellij.openap
             // 獲取行號資訊
             Project project = problemInfo.getElement() != null ?
                     problemInfo.getElement().getProject() : null;
-            int lineNumber = CathayBkProblemsPanel.getLineNumber(project, problemInfo.getElement());
+            int lineNumber = InspectionProblemsPanel.getLineNumber(project, problemInfo.getElement());
             String lineSuffix = (lineNumber > 0) ? " (第 " + lineNumber + " 行)" : "";
 
             // 限制描述長度
@@ -924,6 +924,6 @@ public class CathayBkProblemsPanel extends JPanel implements com.intellij.openap
         // 清除搜索欄位
         searchField = null;
 
-        LOG.info("CathayBkProblemsPanel 已釋放資源");
+        LOG.info("InspectionProblemsPanel 已釋放資源");
     }
 }

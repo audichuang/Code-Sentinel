@@ -49,14 +49,57 @@
     ]]></description>
 
     <change-notes><![CDATA[
-    <b>v1.6.0</b>
+    <b>v1.6.0 - Search Everywhere API 整合與穩定性提升</b>
     <ul>
-        <li>修正 PSI 存取缺少 ReadAction 包裝的執行緒安全問題。</li>
-        <li>修正 Action 執行緒模式，改為 EDT 以符合 IntelliJ 規範。</li>
-        <li>改善 Modal Dialog 中的 UI 更新，加入 ModalityState 支援。</li>
-        <li>強化 Dialog 和 ToolWindow 的 disposed 狀態檢查，防止 NPE。</li>
-        <li>移除未使用的 import，提升程式碼品質。</li>
-        <li>更新 toolWindow icon 格式，提高相容性。</li>
+        <li><b>新功能：Search Everywhere API 搜尋整合</b>
+            <ul>
+                <li>在 Shift+Shift 對話框中新增「APIs」分頁</li>
+                <li>支援 MSGID、路徑、描述的模糊搜尋</li>
+                <li>智能權重排序（完全匹配 > 前綴匹配 > 包含匹配）</li>
+            </ul>
+        </li>
+        <li><b>新功能：API 依賴預覽增強</b>
+            <ul>
+                <li>區分直接依賴與遞迴依賴檔案</li>
+                <li>改進依賴分析視覺化</li>
+            </ul>
+        </li>
+        <li><b>效能與穩定性</b>
+            <ul>
+                <li>修正 PSI 存取缺少 ReadAction 包裝的執行緒安全問題</li>
+                <li>修正 Action 執行緒模式，改為 EDT 以符合 IntelliJ 規範</li>
+                <li>改善 Modal Dialog 中的 UI 更新，加入 ModalityState 支援</li>
+            </ul>
+        </li>
+        <li><b>記憶體洩漏修復</b>
+            <ul>
+                <li>強化 Dialog 和 ToolWindow 的 disposed 狀態檢查</li>
+                <li>優化快取清理機制</li>
+                <li>修復多處潛在記憶體洩漏</li>
+            </ul>
+        </li>
+        <li><b>建構系統</b>
+            <ul>
+                <li>升級 Gradle wrapper 至 9.2.1</li>
+                <li>升級 IntelliJ Platform Plugin 至 2.10.5</li>
+            </ul>
+        </li>
+        <li><b>程式碼品質</b>
+            <ul>
+                <li>重構內部類別名稱以提高可讀性</li>
+                <li>移除未使用的 import，提升程式碼品質</li>
+                <li>更新 toolWindow icon 格式，提高相容性</li>
+            </ul>
+        </li>
+    </ul>
+    <br/>
+    <b>v1.5.0 - Service 電文代號支援與效能優化</b>
+    <ul>
+        <li>新增 Service 類別與方法的電文代號檢查功能</li>
+        <li>支援 Service 介面與實現類的自動識別（Svc/SvcImpl）</li>
+        <li>實作 PSI 檢查結果緩存機制（InspectionCacheManager）</li>
+        <li>添加記憶體壓力監聽和自動調整機制</li>
+        <li>所有主要類別實作 Disposable 介面防止記憶體洩漏</li>
     </ul>
     <br/>
     <b>v1.4.0</b>
@@ -141,7 +184,7 @@
         <!-- ======================================== -->
         <!-- 3. 新增 Commit 前檢查處理器           -->
         <!-- ======================================== -->
-        <checkinHandlerFactory implementation="com.cathaybk.codingassistant.vcs.CathayBkCheckinHandlerFactory"/>
+        <checkinHandlerFactory implementation="com.cathaybk.codingassistant.vcs.PreCommitInspectionHandlerFactory"/>
 
         <!-- ======================================== -->
         <!-- 4. 新增 Git 設置組件                   -->

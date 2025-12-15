@@ -204,15 +204,23 @@ intellijPlatform {
         }
         
         changeNotes.set("""
-            <b>v1.5.0</b>
+            <b>v1.6.0 - Search Everywhere API 整合與穩定性提升</b>
+            <ul>
+                <li><b>新功能：Search Everywhere API 搜尋整合</b> - 在 Shift+Shift 對話框中新增「APIs」分頁，支援 MSGID、路徑、描述的模糊搜尋</li>
+                <li><b>新功能：API 依賴預覽增強</b> - 區分直接依賴與遞迴依賴檔案，改進依賴分析視覺化</li>
+                <li><b>效能與穩定性</b> - 修正執行緒安全問題，改善 Modal Dialog UI 更新</li>
+                <li><b>記憶體洩漏修復</b> - 強化 disposed 狀態檢查，優化快取清理機制</li>
+                <li><b>建構系統</b> - 升級 Gradle 9.2.1，IntelliJ Platform Plugin 2.10.5</li>
+                <li><b>程式碼品質</b> - 重構內部類別名稱，移除未使用的 import</li>
+            </ul>
+            <br/>
+            <b>v1.5.0 - Service 電文代號支援與效能優化</b>
             <ul>
                 <li>新增 Service 類別與方法的電文代號檢查功能</li>
                 <li>支援 Service 介面與實現類的自動識別與後綴生成（Svc/SvcImpl）</li>
                 <li>優化檔案變更檢測器，提升大型專案的檢查效能</li>
                 <li>新增 PSI 檢查結果緩存機制，避免重複檢查</li>
                 <li>改進資源管理，實作 Disposable 介面防止記憶體洩漏</li>
-                <li>修正 Service API ID 生成時的格式問題</li>
-                <li>支援最新版 IntelliJ IDEA 2024.3</li>
             </ul>
             <br/>
             <b>v1.4.0</b>
@@ -230,26 +238,6 @@ intellijPlatform {
                 <li>新增設定選項：可開關 Git 分支落後檢查。</li>
                 <li>新增設定選項：可開關程式碼規範檢查。</li>
                 <li>新增設定選項：可配置 Javadoc 生成方式 (完整/最小)。</li>
-                <li>設定頁面 UI 優化，分區顯示並加入範例說明。</li>
-                <li>增強設定中目標分支名稱的驗證規則。</li>
-                <li>移除設定成功時的冗餘提示彈窗。</li>
-                <li>修復 Javadoc 生成中的換行符問題。</li>
-                <li>(舊) 問題面板界面優化，移除搜尋框，修復 HTML 顯示問題，提高檢查執行效率。</li> 
-            </ul>
-            <br/>
-            <b>v1.2.0</b>
-            <ul>
-                <li>增加對25.1版本的支持，新增bean加入註解功能</li>
-            </ul>
-             <br/>
-            <b>v1.1.0</b>
-            <ul>
-                 <li>優化效能，修正已知問題，改善使用者體驗</li>
-            </ul>
-             <br/>
-            <b>v1.0.0</b>
-            <ul>
-                 <li>初始版本，提供API註解檢查和Service關聯功能</li>
             </ul>
         """)
     }

@@ -89,8 +89,8 @@ CathayBank-JavaCodeQuality/
 ├── build.gradle.kts              # Gradle 建構檔
 ├── gradle.properties             # Gradle 屬性
 ├── README.md                     # 專案說明
-├── CLAUDE.md                     # 本文件
-└── GEMINI.md                     # Gemini 參考文件
+├── CLAUDE.md                     # Claude 參考文件
+└── GEMINI.md                     # 本文件
 ```
 
 ## 最新變更 (v1.6.0)
@@ -177,4 +177,4 @@ A: 按 Shift+Shift 開啟 Search Everywhere，切換到「APIs」分頁
 - v1.0.0 - 初始版本
 
 ---
-*此文件供 Claude Code 參考，以快速理解專案架構與開發重點*
+*此文件供 Gemini 參考，以快速理解專案架構與開發重點*

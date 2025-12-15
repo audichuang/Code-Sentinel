@@ -14,11 +14,11 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
- * 提供國泰程式碼規範核心檢查邏輯的靜態輔助方法。
+ * 提供程式碼規範核心檢查邏輯的靜態輔助方法。
  * 這些方法被 LocalInspectionTool 和 CheckinHandler 共用。
  * (已移除無意義方法名檢查邏輯)
  */
-public class CathayBkInspectionUtil {
+public class CodeInspectionUtil {
 
     // --- 常量區 ---
 

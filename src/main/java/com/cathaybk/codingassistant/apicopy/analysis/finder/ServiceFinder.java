@@ -1,6 +1,6 @@
 package com.cathaybk.codingassistant.apicopy.analysis.finder;
 
-import com.cathaybk.codingassistant.util.CathayBkInspectionUtil;
+import com.cathaybk.codingassistant.util.CodeInspectionUtil;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
@@ -189,7 +189,7 @@ public class ServiceFinder {
      */
     private boolean isInjectedField(@NotNull PsiField field) {
         // 使用共用的工具方法，支援多種注入方式
-        return CathayBkInspectionUtil.isLikelyInjectedField(field);
+        return CodeInspectionUtil.isLikelyInjectedField(field);
     }
 
     /**
