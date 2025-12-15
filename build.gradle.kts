@@ -2,7 +2,7 @@ import java.util.EnumSet
 
 plugins {
     id("java")
-    id("org.jetbrains.intellij.platform") version "2.7.2"
+    id("org.jetbrains.intellij.platform") version "2.10.5"
     id("io.freefair.lombok") version "8.6"
 }
 
@@ -49,10 +49,10 @@ dependencies {
     val intellijVersionProperty = providers.gradleProperty("intellijPlatform.version").orElse("2024.3")
     
     intellijPlatform {
-        // 動態選擇 IDE 類型
+        // 使用統一的 intellijIdea() API (2.9.0+ 推薦)
+        // IU/IC 已合併為單一 IntellijIdea 類型
         when (intellijTypeProperty.get()) {
-            "IU" -> intellijIdeaUltimate(intellijVersionProperty.get())
-            "IC" -> intellijIdeaCommunity(intellijVersionProperty.get())
+            "IU", "IC" -> intellijIdea(intellijVersionProperty.get())
             else -> create(intellijTypeProperty.get(), intellijVersionProperty.get())
         }
         
