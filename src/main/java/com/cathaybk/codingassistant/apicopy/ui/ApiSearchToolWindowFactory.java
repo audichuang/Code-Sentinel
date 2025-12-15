@@ -1,5 +1,6 @@
 package com.cathaybk.codingassistant.apicopy.ui;
 
+import com.intellij.icons.AllIcons;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowFactory;
@@ -14,6 +15,9 @@ public class ApiSearchToolWindowFactory implements ToolWindowFactory {
 
     @Override
     public void createToolWindowContent(@NotNull Project project, @NotNull ToolWindow toolWindow) {
+        // 設定工具視窗圖標
+        toolWindow.setIcon(AllIcons.Actions.Search);
+
         ApiSearchToolWindow apiSearchToolWindow = new ApiSearchToolWindow(project, toolWindow);
         ContentFactory contentFactory = ContentFactory.getInstance();
         Content content = contentFactory.createContent(

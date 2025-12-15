@@ -5,7 +5,6 @@ import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.psi.*;
@@ -77,34 +76,36 @@ public final class ApiIndexService implements Disposable {
     public List<ApiInfo> searchApis(@NotNull String keyword) {
         ensureIndexed();
 
-        List<ApiInfo> results = new ArrayList<>();
-        String lowerKeyword = keyword.toLowerCase();
+        return ReadAction.compute(() -> {
+            List<ApiInfo> results = new ArrayList<>();
+            String lowerKeyword = keyword.toLowerCase();
 
-        for (Map.Entry<String, SoftReference<ApiInfo>> entry : apiCache.entrySet()) {
-            ApiInfo api = entry.getValue().get();
-            if (api != null && api.isValid()) {
-                // 搜尋 MSGID
-                if (api.getMsgId().toLowerCase().contains(lowerKeyword)) {
-                    results.add(api);
-                    continue;
-                }
-                // 搜尋描述
-                if (api.getDescription() != null &&
-                    api.getDescription().toLowerCase().contains(lowerKeyword)) {
-                    results.add(api);
-                    continue;
-                }
-                // 搜尋方法名稱
-                PsiMethod method = api.getMethod();
-                if (method != null && method.getName().toLowerCase().contains(lowerKeyword)) {
-                    results.add(api);
+            for (Map.Entry<String, SoftReference<ApiInfo>> entry : apiCache.entrySet()) {
+                ApiInfo api = entry.getValue().get();
+                if (api != null && api.isValid()) {
+                    // 搜尋 MSGID
+                    if (api.getMsgId().toLowerCase().contains(lowerKeyword)) {
+                        results.add(api);
+                        continue;
+                    }
+                    // 搜尋描述
+                    if (api.getDescription() != null &&
+                        api.getDescription().toLowerCase().contains(lowerKeyword)) {
+                        results.add(api);
+                        continue;
+                    }
+                    // 搜尋方法名稱
+                    PsiMethod method = api.getMethod();
+                    if (method != null && method.getName().toLowerCase().contains(lowerKeyword)) {
+                        results.add(api);
+                    }
                 }
             }
-        }
 
-        // 按 MSGID 排序
-        results.sort(Comparator.comparing(ApiInfo::getMsgId));
-        return results;
+            // 按 MSGID 排序
+            results.sort(Comparator.comparing(ApiInfo::getMsgId));
+            return results;
+        });
     }
 
     /**
@@ -114,14 +115,16 @@ public final class ApiIndexService implements Disposable {
     public ApiInfo getApiByMsgId(@NotNull String msgId) {
         ensureIndexed();
 
-        SoftReference<ApiInfo> ref = apiCache.get(msgId);
-        if (ref != null) {
-            ApiInfo api = ref.get();
-            if (api != null && api.isValid()) {
-                return api;
+        return ReadAction.compute(() -> {
+            SoftReference<ApiInfo> ref = apiCache.get(msgId);
+            if (ref != null) {
+                ApiInfo api = ref.get();
+                if (api != null && api.isValid()) {
+                    return api;
+                }
             }
-        }
-        return null;
+            return null;
+        });
     }
 
     /**
@@ -131,15 +134,17 @@ public final class ApiIndexService implements Disposable {
     public List<ApiInfo> getAllApis() {
         ensureIndexed();
 
-        List<ApiInfo> results = new ArrayList<>();
-        for (SoftReference<ApiInfo> ref : apiCache.values()) {
-            ApiInfo api = ref.get();
-            if (api != null && api.isValid()) {
-                results.add(api);
+        return ReadAction.compute(() -> {
+            List<ApiInfo> results = new ArrayList<>();
+            for (SoftReference<ApiInfo> ref : apiCache.values()) {
+                ApiInfo api = ref.get();
+                if (api != null && api.isValid()) {
+                    results.add(api);
+                }
             }
-        }
-        results.sort(Comparator.comparing(ApiInfo::getMsgId));
-        return results;
+            results.sort(Comparator.comparing(ApiInfo::getMsgId));
+            return results;
+        });
     }
 
     /**
@@ -169,30 +174,13 @@ public final class ApiIndexService implements Disposable {
             return;
         }
 
-        // 檢查是否在 dumb mode（索引尚未完成）
-        if (DumbService.isDumb(project)) {
-            LOG.info("專案仍在索引中，稍後再建立 API 索引");
-            // 當索引完成後再執行
-            DumbService.getInstance(project).runWhenSmart(this::buildIndexInternal);
-            return;
-        }
-
-        buildIndexInternal();
-    }
-
-    /**
-     * 實際執行索引建立
-     */
-    private synchronized void buildIndexInternal() {
-        if (indexed && (System.currentTimeMillis() - lastIndexTime < INDEX_TTL)) {
-            return;
-        }
-
         LOG.info("開始建立 API 索引...");
         apiCache.clear();
 
         try {
-            ReadAction.run(() -> {
+            // 使用 nonBlocking ReadAction - 允許在背景執行慢操作，但同步等待完成
+            // inSmartMode() 會自動等待 IDE 索引完成後才執行
+            ReadAction.nonBlocking(() -> {
                 GlobalSearchScope scope = GlobalSearchScope.projectScope(project);
                 Query<PsiClass> query = AllClassesSearch.search(scope, project);
 
@@ -202,7 +190,10 @@ public final class ApiIndexService implements Disposable {
                     }
                     return true;
                 });
-            });
+                return null;
+            })
+            .inSmartMode(project)  // 確保在 smart mode 執行（會自動等待 dumb mode 結束）
+            .executeSynchronously();  // 同步等待完成
 
             indexed = true;
             lastIndexTime = System.currentTimeMillis();

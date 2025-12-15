@@ -6,6 +6,8 @@ import com.cathaybk.codingassistant.apicopy.model.DependencyGraph;
 import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationType;
 import com.intellij.openapi.Disposable;
+import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.ide.CopyPasteManager;
@@ -82,9 +84,9 @@ public final class ApiCopyService implements Disposable {
 
                 indicator.setFraction(1.0);
 
-                // 在 EDT 中執行回調
-                com.intellij.openapi.application.ApplicationManager.getApplication()
-                        .invokeLater(() -> callback.accept(graph));
+                // 在 EDT 中執行回調，使用 ModalityState.any() 支援 modal dialog
+                ApplicationManager.getApplication()
+                        .invokeLater(() -> callback.accept(graph), ModalityState.any());
             }
         });
     }

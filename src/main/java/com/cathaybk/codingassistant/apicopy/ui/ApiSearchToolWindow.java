@@ -5,6 +5,7 @@ import com.cathaybk.codingassistant.apicopy.service.ApiCopyService;
 import com.cathaybk.codingassistant.apicopy.service.ApiIndexService;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.openapi.wm.ToolWindow;
@@ -187,10 +188,12 @@ public class ApiSearchToolWindow implements Disposable {
             }
 
             ApplicationManager.getApplication().invokeLater(() -> {
-                tableModel.setApis(results);
-                statusLabel.setText("找到 " + results.size() + " 個 API");
-                updateButtonState();
-            });
+                if (!project.isDisposed()) {
+                    tableModel.setApis(results);
+                    statusLabel.setText("找到 " + results.size() + " 個 API");
+                    updateButtonState();
+                }
+            }, ModalityState.defaultModalityState());
         });
     }
 
@@ -205,9 +208,11 @@ public class ApiSearchToolWindow implements Disposable {
             List<ApiInfo> allApis = indexService.getAllApis();
 
             ApplicationManager.getApplication().invokeLater(() -> {
-                tableModel.setApis(allApis);
-                statusLabel.setText("共 " + allApis.size() + " 個 API");
-            });
+                if (!project.isDisposed()) {
+                    tableModel.setApis(allApis);
+                    statusLabel.setText("共 " + allApis.size() + " 個 API");
+                }
+            }, ModalityState.defaultModalityState());
         });
     }
 
@@ -224,10 +229,12 @@ public class ApiSearchToolWindow implements Disposable {
             List<ApiInfo> allApis = indexService.getAllApis();
 
             ApplicationManager.getApplication().invokeLater(() -> {
-                tableModel.setApis(allApis);
-                statusLabel.setText("索引完成，共 " + allApis.size() + " 個 API");
-                refreshButton.setEnabled(true);
-            });
+                if (!project.isDisposed()) {
+                    tableModel.setApis(allApis);
+                    statusLabel.setText("索引完成，共 " + allApis.size() + " 個 API");
+                    refreshButton.setEnabled(true);
+                }
+            }, ModalityState.defaultModalityState());
         });
     }
 
@@ -288,9 +295,11 @@ public class ApiSearchToolWindow implements Disposable {
 
             // 恢復按鈕狀態
             ApplicationManager.getApplication().invokeLater(() -> {
-                statusLabel.setText("複製完成");
-                copyButton.setEnabled(true);
-            });
+                if (!project.isDisposed()) {
+                    statusLabel.setText("複製完成");
+                    copyButton.setEnabled(true);
+                }
+            }, ModalityState.defaultModalityState());
         }
     }
 

@@ -1,7 +1,6 @@
 package com.cathaybk.codingassistant.apicopy.action;
 
 import com.cathaybk.codingassistant.apicopy.model.ApiInfo;
-import com.cathaybk.codingassistant.apicopy.service.ApiCopyService;
 import com.cathaybk.codingassistant.apicopy.ui.ApiPreviewDialog;
 import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
@@ -34,7 +33,7 @@ public class CopyFullApiAction extends AnAction {
 
     @Override
     public @NotNull ActionUpdateThread getActionUpdateThread() {
-        return ActionUpdateThread.BGT;
+        return ActionUpdateThread.EDT;
     }
 
     @Override

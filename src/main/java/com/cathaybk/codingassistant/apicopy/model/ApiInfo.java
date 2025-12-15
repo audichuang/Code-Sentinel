@@ -1,5 +1,6 @@
 package com.cathaybk.codingassistant.apicopy.model;
 
+import com.intellij.openapi.application.ReadAction;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.SmartPointerManager;
@@ -57,22 +58,24 @@ public class ApiInfo {
 
     @Nullable
     public PsiMethod getMethod() {
-        return methodPointer.getElement();
+        return ReadAction.compute(() -> methodPointer.getElement());
     }
 
     @Nullable
     public PsiClass getController() {
-        return controllerPointer.getElement();
+        return ReadAction.compute(() -> controllerPointer.getElement());
     }
 
     /**
      * 檢查此 API 資訊是否仍然有效
      */
     public boolean isValid() {
-        PsiMethod method = methodPointer.getElement();
-        PsiClass controller = controllerPointer.getElement();
-        return method != null && method.isValid() &&
-               controller != null && controller.isValid();
+        return ReadAction.compute(() -> {
+            PsiMethod method = methodPointer.getElement();
+            PsiClass controller = controllerPointer.getElement();
+            return method != null && method.isValid() &&
+                   controller != null && controller.isValid();
+        });
     }
 
     /**
@@ -80,17 +83,19 @@ public class ApiInfo {
      */
     @NotNull
     public String getDisplayName() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("[").append(msgId).append("] ");
-        if (description != null && !description.isEmpty()) {
-            sb.append(description);
-        } else {
-            PsiMethod method = methodPointer.getElement();
-            if (method != null) {
-                sb.append(method.getName());
+        return ReadAction.compute(() -> {
+            StringBuilder sb = new StringBuilder();
+            sb.append("[").append(msgId).append("] ");
+            if (description != null && !description.isEmpty()) {
+                sb.append(description);
+            } else {
+                PsiMethod method = methodPointer.getElement();
+                if (method != null) {
+                    sb.append(method.getName());
+                }
             }
-        }
-        return sb.toString();
+            return sb.toString();
+        });
     }
 
     @Override

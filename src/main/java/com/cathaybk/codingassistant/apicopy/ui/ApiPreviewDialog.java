@@ -186,7 +186,7 @@ public class ApiPreviewDialog extends DialogWrapper {
      * 更新 UI
      */
     private void updateUI() {
-        if (dependencyGraph == null) return;
+        if (dependencyGraph == null || isDisposed()) return;
 
         // 更新摘要
         summaryLabel.setText(String.format(
@@ -196,16 +196,22 @@ public class ApiPreviewDialog extends DialogWrapper {
                 dependencyGraph.getTotalLineCount()
         ));
 
+        if (isDisposed()) return;
+
         // 使用 setItems() 批量更新（取代 clear + addItem 循環）
         List<DependencyNode> nodes = dependencyGraph.getNodes();
         fileList.setItems(nodes, node -> String.format("[%s] %s",
                 node.getFileType().getChineseName(),
                 node.getDisplayName()));
 
+        if (isDisposed()) return;
+
         // 恢復選中狀態
         for (DependencyNode node : nodes) {
             fileList.setItemSelected(node, node.isSelected());
         }
+
+        if (isDisposed()) return;
 
         // 更新預覽
         updatePreview();
@@ -215,7 +221,7 @@ public class ApiPreviewDialog extends DialogWrapper {
      * 更新預覽內容
      */
     private void updatePreview() {
-        if (dependencyGraph == null) return;
+        if (dependencyGraph == null || isDisposed()) return;
 
         StringBuilder sb = new StringBuilder();
         sb.append("// ==========================================\n");
@@ -242,6 +248,8 @@ public class ApiPreviewDialog extends DialogWrapper {
             sb.append("\n");
         }
 
+        if (isDisposed()) return;
+
         previewArea.setText(sb.toString());
         previewArea.setCaretPosition(0);
     }
@@ -250,16 +258,19 @@ public class ApiPreviewDialog extends DialogWrapper {
      * 全選或取消全選
      */
     private void selectAll(boolean select) {
-        if (dependencyGraph == null) return;
+        if (dependencyGraph == null || isDisposed()) return;
 
         for (int i = 0; i < fileList.getItemsCount(); i++) {
+            if (isDisposed()) return;
             DependencyNode node = fileList.getItemAt(i);
             if (node != null) {
                 node.setSelected(select);
                 fileList.setItemSelected(node, select);
             }
         }
-        updatePreview();
+        if (!isDisposed()) {
+            updatePreview();
+        }
     }
 
     @Override
