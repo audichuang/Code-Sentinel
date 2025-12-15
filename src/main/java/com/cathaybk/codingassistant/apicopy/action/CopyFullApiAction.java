@@ -6,6 +6,7 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
+import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
@@ -85,34 +86,37 @@ public class CopyFullApiAction extends AnAction {
             return null;
         }
 
-        int offset = editor.getCaretModel().getOffset();
-        PsiElement element = psiFile.findElementAt(offset);
-
-        return PsiTreeUtil.getParentOfType(element, PsiMethod.class);
+        return ReadAction.compute(() -> {
+            int offset = editor.getCaretModel().getOffset();
+            PsiElement element = psiFile.findElementAt(offset);
+            return PsiTreeUtil.getParentOfType(element, PsiMethod.class);
+        });
     }
 
     /**
      * 判斷是否為 API 方法
      */
     private boolean isApiMethod(@NotNull PsiMethod method) {
-        // 檢查是否有 Mapping 註解
-        if (method.hasAnnotation("org.springframework.web.bind.annotation.RequestMapping") ||
-            method.hasAnnotation("org.springframework.web.bind.annotation.GetMapping") ||
-            method.hasAnnotation("org.springframework.web.bind.annotation.PostMapping") ||
-            method.hasAnnotation("org.springframework.web.bind.annotation.PutMapping") ||
-            method.hasAnnotation("org.springframework.web.bind.annotation.DeleteMapping") ||
-            method.hasAnnotation("org.springframework.web.bind.annotation.PatchMapping")) {
-            return true;
-        }
+        return ReadAction.compute(() -> {
+            // 檢查是否有 Mapping 註解
+            if (method.hasAnnotation("org.springframework.web.bind.annotation.RequestMapping") ||
+                method.hasAnnotation("org.springframework.web.bind.annotation.GetMapping") ||
+                method.hasAnnotation("org.springframework.web.bind.annotation.PostMapping") ||
+                method.hasAnnotation("org.springframework.web.bind.annotation.PutMapping") ||
+                method.hasAnnotation("org.springframework.web.bind.annotation.DeleteMapping") ||
+                method.hasAnnotation("org.springframework.web.bind.annotation.PatchMapping")) {
+                return true;
+            }
 
-        // 檢查所在類別是否為 Controller
-        PsiClass containingClass = method.getContainingClass();
-        if (containingClass != null) {
-            return containingClass.hasAnnotation("org.springframework.stereotype.Controller") ||
-                   containingClass.hasAnnotation("org.springframework.web.bind.annotation.RestController");
-        }
+            // 檢查所在類別是否為 Controller
+            PsiClass containingClass = method.getContainingClass();
+            if (containingClass != null) {
+                return containingClass.hasAnnotation("org.springframework.stereotype.Controller") ||
+                       containingClass.hasAnnotation("org.springframework.web.bind.annotation.RestController");
+            }
 
-        return false;
+            return false;
+        });
     }
 
     /**

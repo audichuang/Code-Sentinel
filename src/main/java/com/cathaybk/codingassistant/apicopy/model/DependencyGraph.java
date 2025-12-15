@@ -26,6 +26,7 @@ public class DependencyGraph {
         private final String displayName;
         private final String filePath;
         private boolean selected;
+        private boolean recursiveDependency;  // 是否為遞迴依賴（非直接依賴）
 
         public DependencyNode(@NotNull ApiFileType fileType,
                               @NotNull PsiFile file,
@@ -82,6 +83,20 @@ public class DependencyGraph {
 
         public void setSelected(boolean selected) {
             this.selected = selected;
+        }
+
+        /**
+         * 是否為遞迴依賴（非直接依賴）
+         */
+        public boolean isRecursiveDependency() {
+            return recursiveDependency;
+        }
+
+        /**
+         * 設定是否為遞迴依賴
+         */
+        public void setRecursiveDependency(boolean recursiveDependency) {
+            this.recursiveDependency = recursiveDependency;
         }
 
         /**
@@ -152,11 +167,48 @@ public class DependencyGraph {
     }
 
     /**
+     * 添加遞迴依賴節點（標記為非直接依賴，預設不選中）
+     */
+    public void addRecursiveNode(@NotNull DependencyNode node) {
+        node.setRecursiveDependency(true);
+        node.setSelected(false);  // 遞迴依賴預設不選中
+        addNode(node);
+    }
+
+    /**
      * 取得所有節點
      */
     @NotNull
     public List<DependencyNode> getNodes() {
         return Collections.unmodifiableList(nodes);
+    }
+
+    /**
+     * 取得直接依賴節點（非遞迴依賴）
+     */
+    @NotNull
+    public List<DependencyNode> getDirectDependencyNodes() {
+        List<DependencyNode> direct = new ArrayList<>();
+        for (DependencyNode node : nodes) {
+            if (!node.isRecursiveDependency()) {
+                direct.add(node);
+            }
+        }
+        return direct;
+    }
+
+    /**
+     * 取得遞迴依賴節點
+     */
+    @NotNull
+    public List<DependencyNode> getRecursiveDependencyNodes() {
+        List<DependencyNode> recursive = new ArrayList<>();
+        for (DependencyNode node : nodes) {
+            if (node.isRecursiveDependency()) {
+                recursive.add(node);
+            }
+        }
+        return recursive;
     }
 
     /**

@@ -143,13 +143,13 @@ public class ApiDependencyAnalyzer {
      */
     private void analyzeMethodDtos(@NotNull DependencyGraph graph, @NotNull PsiMethod method) {
         checkProgress();
-        LOG.info("[ApiDependencyAnalyzer] 開始分析方法的 DTO: " + method.getName());
+        LOG.debug("[ApiDependencyAnalyzer] 開始分析方法的 DTO: " + method.getName());
 
         // 分析請求參數
         Set<PsiClass> requestDtos = dtoFinder.findRequestDtos(method);
-        LOG.info("[ApiDependencyAnalyzer] 找到 Request DTO 數量: " + requestDtos.size());
+        LOG.debug("[ApiDependencyAnalyzer] 找到 Request DTO 數量: " + requestDtos.size());
         for (PsiClass dto : requestDtos) {
-            LOG.info("[ApiDependencyAnalyzer] Request DTO: " + dto.getQualifiedName());
+            LOG.debug("[ApiDependencyAnalyzer] Request DTO: " + dto.getQualifiedName());
             if (addClassNode(graph, dto, ApiFileType.REQUEST_DTO)) {
                 analyzeNestedDtos(graph, dto);
             }
@@ -157,9 +157,9 @@ public class ApiDependencyAnalyzer {
 
         // 分析回應類型
         Set<PsiClass> responseDtos = dtoFinder.findResponseDtos(method);
-        LOG.info("[ApiDependencyAnalyzer] 找到 Response DTO 數量: " + responseDtos.size());
+        LOG.debug("[ApiDependencyAnalyzer] 找到 Response DTO 數量: " + responseDtos.size());
         for (PsiClass dto : responseDtos) {
-            LOG.info("[ApiDependencyAnalyzer] Response DTO: " + dto.getQualifiedName());
+            LOG.debug("[ApiDependencyAnalyzer] Response DTO: " + dto.getQualifiedName());
             if (addClassNode(graph, dto, ApiFileType.RESPONSE_DTO)) {
                 analyzeNestedDtos(graph, dto);
             }
@@ -186,17 +186,17 @@ public class ApiDependencyAnalyzer {
      */
     private void analyzeServiceDependencies(@NotNull DependencyGraph graph, @NotNull PsiMethod controllerMethod) {
         checkProgress();
-        LOG.info("[ApiDependencyAnalyzer] 開始分析 Service 依賴: " + controllerMethod.getName());
+        LOG.debug("[ApiDependencyAnalyzer] 開始分析 Service 依賴: " + controllerMethod.getName());
 
         // 找到方法調用的 Service
         Set<PsiClass> services = serviceFinder.findCalledServices(controllerMethod);
-        LOG.info("[ApiDependencyAnalyzer] 找到 Service 數量: " + services.size());
+        LOG.debug("[ApiDependencyAnalyzer] 找到 Service 數量: " + services.size());
 
         for (PsiClass service : services) {
             if (!checkLimits()) return;
             checkProgress();
 
-            LOG.info("[ApiDependencyAnalyzer] 處理 Service: " + service.getQualifiedName() + ", isInterface: " + service.isInterface());
+            LOG.debug("[ApiDependencyAnalyzer] 處理 Service: " + service.getQualifiedName() + ", isInterface: " + service.isInterface());
 
             // 判斷是介面還是實作類
             ApiFileType serviceType = service.isInterface()
@@ -207,9 +207,9 @@ public class ApiDependencyAnalyzer {
                 // 如果是介面，找實作類
                 if (service.isInterface()) {
                     Set<PsiClass> impls = serviceFinder.findImplementations(service);
-                    LOG.info("[ApiDependencyAnalyzer] 找到 Service 實作類數量: " + impls.size());
+                    LOG.debug("[ApiDependencyAnalyzer] 找到 Service 實作類數量: " + impls.size());
                     for (PsiClass impl : impls) {
-                        LOG.info("[ApiDependencyAnalyzer] Service 實作: " + impl.getQualifiedName());
+                        LOG.debug("[ApiDependencyAnalyzer] Service 實作: " + impl.getQualifiedName());
                         if (addClassNode(graph, impl, ApiFileType.SERVICE_IMPL)) {
                             analyzeServiceImpl(graph, impl);
                         }
@@ -225,25 +225,80 @@ public class ApiDependencyAnalyzer {
      * 分析 Service 實作類
      */
     private void analyzeServiceImpl(@NotNull DependencyGraph graph, @NotNull PsiClass serviceImpl) {
+        analyzeServiceImpl(graph, serviceImpl, false);
+    }
+
+    /**
+     * 分析 Service 實作類（內部方法）
+     * @param isRecursive 是否為遞迴依賴（從其他 Service 注入的）
+     */
+    private void analyzeServiceImpl(@NotNull DependencyGraph graph, @NotNull PsiClass serviceImpl, boolean isRecursive) {
         if (!checkLimits()) return;
         checkProgress();
 
-        // 分析 SQL 檔案
+        // 1. 分析 SQL 檔案
         Set<String> sqlPaths = sqlFileFinder.findSqlFiles(serviceImpl);
         for (String sqlPath : sqlPaths) {
             PsiFile sqlFile = sqlFileFinder.resolveSqlFile(sqlPath);
             if (sqlFile != null) {
-                addSqlNode(graph, sqlFile);
+                if (isRecursive) {
+                    addRecursiveSqlNode(graph, sqlFile);
+                } else {
+                    addSqlNode(graph, sqlFile);
+                }
             }
         }
 
-        // 分析 Repository 依賴
+        // 2. 分析 Repository 依賴
         Set<PsiClass> repositories = repositoryFinder.findUsedRepositories(serviceImpl);
         for (PsiClass repository : repositories) {
             if (!checkLimits()) return;
 
-            if (addClassNode(graph, repository, ApiFileType.REPOSITORY)) {
-                analyzeRepository(graph, repository);
+            if (isRecursive) {
+                if (addRecursiveClassNode(graph, repository, ApiFileType.REPOSITORY)) {
+                    analyzeRepository(graph, repository, true);
+                }
+            } else {
+                if (addClassNode(graph, repository, ApiFileType.REPOSITORY)) {
+                    analyzeRepository(graph, repository, false);
+                }
+            }
+        }
+
+        // 3. 分析注入的 Service 依賴（遞迴）
+        Map<String, PsiClass> injectedServices = serviceFinder.findInjectedServices(serviceImpl);
+        LOG.debug("[ApiDependencyAnalyzer] Service " + serviceImpl.getName() + " 注入的 Service 數量: " + injectedServices.size());
+
+        for (PsiClass injectedService : injectedServices.values()) {
+            if (!checkLimits()) return;
+            checkProgress();
+
+            String qName = injectedService.getQualifiedName();
+            if (qName == null || visitedClasses.contains(qName)) {
+                continue;  // 避免循環依賴
+            }
+
+            LOG.debug("[ApiDependencyAnalyzer] 分析注入的 Service: " + qName);
+
+            // 判斷是介面還是實作類
+            ApiFileType serviceType = injectedService.isInterface()
+                    ? ApiFileType.SERVICE_INTERFACE
+                    : ApiFileType.SERVICE_IMPL;
+
+            // 注入的 Service 及其依賴都是遞迴依賴
+            if (addRecursiveClassNode(graph, injectedService, serviceType)) {
+                // 如果是介面，找實作類
+                if (injectedService.isInterface()) {
+                    Set<PsiClass> impls = serviceFinder.findImplementations(injectedService);
+                    LOG.debug("[ApiDependencyAnalyzer] 找到 " + injectedService.getName() + " 的實作類數量: " + impls.size());
+                    for (PsiClass impl : impls) {
+                        if (addRecursiveClassNode(graph, impl, ApiFileType.SERVICE_IMPL)) {
+                            analyzeServiceImpl(graph, impl, true);  // 遞迴分析實作類
+                        }
+                    }
+                } else {
+                    analyzeServiceImpl(graph, injectedService, true);  // 遞迴分析
+                }
             }
         }
     }
@@ -251,15 +306,21 @@ public class ApiDependencyAnalyzer {
     /**
      * 分析 Repository
      */
-    private void analyzeRepository(@NotNull DependencyGraph graph, @NotNull PsiClass repository) {
+    private void analyzeRepository(@NotNull DependencyGraph graph, @NotNull PsiClass repository, boolean isRecursive) {
         if (!checkLimits()) return;
         checkProgress();
 
         // 找到 Repository 使用的 Entity
         Set<PsiClass> entities = entityFinder.findEntitiesFromRepository(repository);
         for (PsiClass entity : entities) {
-            if (addClassNode(graph, entity, ApiFileType.ENTITY)) {
-                analyzeEntity(graph, entity);
+            if (isRecursive) {
+                if (addRecursiveClassNode(graph, entity, ApiFileType.ENTITY)) {
+                    analyzeEntity(graph, entity, true);
+                }
+            } else {
+                if (addClassNode(graph, entity, ApiFileType.ENTITY)) {
+                    analyzeEntity(graph, entity, false);
+                }
             }
         }
     }
@@ -267,14 +328,18 @@ public class ApiDependencyAnalyzer {
     /**
      * 分析 Entity
      */
-    private void analyzeEntity(@NotNull DependencyGraph graph, @NotNull PsiClass entity) {
+    private void analyzeEntity(@NotNull DependencyGraph graph, @NotNull PsiClass entity, boolean isRecursive) {
         if (!checkLimits()) return;
         checkProgress();
 
         // 找到複合主鍵
         Set<PsiClass> compositePKs = entityFinder.findCompositePK(entity);
         for (PsiClass pk : compositePKs) {
-            addClassNode(graph, pk, ApiFileType.COMPOSITE_PK);
+            if (isRecursive) {
+                addRecursiveClassNode(graph, pk, ApiFileType.COMPOSITE_PK);
+            } else {
+                addClassNode(graph, pk, ApiFileType.COMPOSITE_PK);
+            }
         }
     }
 
@@ -286,6 +351,30 @@ public class ApiDependencyAnalyzer {
     private boolean addClassNode(@NotNull DependencyGraph graph,
                                   @NotNull PsiClass psiClass,
                                   @NotNull ApiFileType fileType) {
+        return addClassNode(graph, psiClass, fileType, false);
+    }
+
+    /**
+     * 添加遞迴依賴的類別節點到圖中
+     *
+     * @return 如果成功添加則返回 true，如果已存在或無效則返回 false
+     */
+    private boolean addRecursiveClassNode(@NotNull DependencyGraph graph,
+                                           @NotNull PsiClass psiClass,
+                                           @NotNull ApiFileType fileType) {
+        return addClassNode(graph, psiClass, fileType, true);
+    }
+
+    /**
+     * 添加類別節點到圖中（內部方法）
+     *
+     * @param isRecursive 是否為遞迴依賴
+     * @return 如果成功添加則返回 true，如果已存在或無效則返回 false
+     */
+    private boolean addClassNode(@NotNull DependencyGraph graph,
+                                  @NotNull PsiClass psiClass,
+                                  @NotNull ApiFileType fileType,
+                                  boolean isRecursive) {
         String qName = psiClass.getQualifiedName();
         if (qName == null || visitedClasses.contains(qName)) {
             return false;
@@ -300,9 +389,13 @@ public class ApiDependencyAnalyzer {
         nodeCount++;
 
         DependencyNode node = new DependencyNode(fileType, file, psiClass);
-        graph.addNode(node);
+        if (isRecursive) {
+            graph.addRecursiveNode(node);
+        } else {
+            graph.addNode(node);
+        }
 
-        LOG.debug("添加節點: [" + fileType + "] " + qName);
+        LOG.debug("添加節點: [" + fileType + "] " + qName + (isRecursive ? " (遞迴)" : ""));
         return true;
     }
 
@@ -310,6 +403,20 @@ public class ApiDependencyAnalyzer {
      * 添加 SQL 檔案節點
      */
     private void addSqlNode(@NotNull DependencyGraph graph, @NotNull PsiFile sqlFile) {
+        addSqlNode(graph, sqlFile, false);
+    }
+
+    /**
+     * 添加遞迴依賴的 SQL 檔案節點
+     */
+    private void addRecursiveSqlNode(@NotNull DependencyGraph graph, @NotNull PsiFile sqlFile) {
+        addSqlNode(graph, sqlFile, true);
+    }
+
+    /**
+     * 添加 SQL 檔案節點（內部方法）
+     */
+    private void addSqlNode(@NotNull DependencyGraph graph, @NotNull PsiFile sqlFile, boolean isRecursive) {
         String path = sqlFile.getVirtualFile() != null
                 ? sqlFile.getVirtualFile().getPath()
                 : sqlFile.getName();
@@ -322,9 +429,13 @@ public class ApiDependencyAnalyzer {
         nodeCount++;
 
         DependencyNode node = DependencyNode.createSqlNode(path, sqlFile);
-        graph.addNode(node);
+        if (isRecursive) {
+            graph.addRecursiveNode(node);
+        } else {
+            graph.addNode(node);
+        }
 
-        LOG.debug("添加 SQL 節點: " + path);
+        LOG.debug("添加 SQL 節點: " + path + (isRecursive ? " (遞迴)" : ""));
     }
 
     /**

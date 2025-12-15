@@ -37,11 +37,14 @@ public class ApiPreviewDialog extends DialogWrapper {
 
     private JPanel mainPanel;
     private JBLabel summaryLabel;
-    private CheckBoxList<DependencyNode> fileList;
+    private CheckBoxList<DependencyNode> directFileList;
+    private CheckBoxList<DependencyNode> recursiveFileList;
     private JBTextArea previewArea;
     private JProgressBar progressBar;
-    private JButton selectAllButton;
-    private JButton deselectAllButton;
+    private JButton selectAllDirectButton;
+    private JButton deselectAllDirectButton;
+    private JButton selectAllRecursiveButton;
+    private JButton deselectAllRecursiveButton;
 
     public ApiPreviewDialog(@NotNull Project project, @NotNull ApiInfo apiInfo) {
         super(project, true);
@@ -106,30 +109,96 @@ public class ApiPreviewDialog extends DialogWrapper {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(JBUI.Borders.empty(5));
 
-        JLabel title = new JLabel("依賴檔案列表");
+        // 使用垂直分割面板分開直接依賴和遞迴依賴
+        JSplitPane verticalSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
+        verticalSplit.setResizeWeight(0.6);
+
+        // 上半部：直接依賴
+        JPanel directPanel = createDirectDependencyPanel();
+
+        // 下半部：遞迴依賴
+        JPanel recursivePanel = createRecursiveDependencyPanel();
+
+        verticalSplit.setTopComponent(directPanel);
+        verticalSplit.setBottomComponent(recursivePanel);
+
+        panel.add(verticalSplit, BorderLayout.CENTER);
+
+        return panel;
+    }
+
+    /**
+     * 建立直接依賴面板
+     */
+    private JPanel createDirectDependencyPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(JBUI.Borders.empty(2));
+
+        JLabel title = new JLabel("直接依賴檔案");
+        title.setFont(title.getFont().deriveFont(Font.BOLD));
         title.setBorder(JBUI.Borders.emptyBottom(5));
 
         // 檔案列表
-        fileList = new CheckBoxList<>();
-        fileList.setCheckBoxListListener((index, selected) -> {
-            DependencyNode node = fileList.getItemAt(index);
+        directFileList = new CheckBoxList<>();
+        directFileList.setCheckBoxListListener((index, selected) -> {
+            DependencyNode node = directFileList.getItemAt(index);
             if (node != null) {
                 node.setSelected(selected);
                 updatePreview();
             }
         });
 
-        JBScrollPane scrollPane = new JBScrollPane(fileList);
+        JBScrollPane scrollPane = new JBScrollPane(directFileList);
 
         // 按鈕區域
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
-        selectAllButton = new JButton("全選");
-        selectAllButton.addActionListener(e -> selectAll(true));
-        deselectAllButton = new JButton("取消全選");
-        deselectAllButton.addActionListener(e -> selectAll(false));
+        selectAllDirectButton = new JButton("全選");
+        selectAllDirectButton.addActionListener(e -> selectAllDirect(true));
+        deselectAllDirectButton = new JButton("取消全選");
+        deselectAllDirectButton.addActionListener(e -> selectAllDirect(false));
 
-        buttonPanel.add(selectAllButton);
-        buttonPanel.add(deselectAllButton);
+        buttonPanel.add(selectAllDirectButton);
+        buttonPanel.add(deselectAllDirectButton);
+
+        panel.add(title, BorderLayout.NORTH);
+        panel.add(scrollPane, BorderLayout.CENTER);
+        panel.add(buttonPanel, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
+    /**
+     * 建立遞迴依賴面板
+     */
+    private JPanel createRecursiveDependencyPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(JBUI.Borders.empty(2));
+
+        JLabel title = new JLabel("遞迴依賴檔案（注入的 Service 及其依賴）");
+        title.setFont(title.getFont().deriveFont(Font.BOLD));
+        title.setBorder(JBUI.Borders.emptyBottom(5));
+
+        // 檔案列表
+        recursiveFileList = new CheckBoxList<>();
+        recursiveFileList.setCheckBoxListListener((index, selected) -> {
+            DependencyNode node = recursiveFileList.getItemAt(index);
+            if (node != null) {
+                node.setSelected(selected);
+                updatePreview();
+            }
+        });
+
+        JBScrollPane scrollPane = new JBScrollPane(recursiveFileList);
+
+        // 按鈕區域
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        selectAllRecursiveButton = new JButton("全選");
+        selectAllRecursiveButton.addActionListener(e -> selectAllRecursive(true));
+        deselectAllRecursiveButton = new JButton("取消全選");
+        deselectAllRecursiveButton.addActionListener(e -> selectAllRecursive(false));
+
+        buttonPanel.add(selectAllRecursiveButton);
+        buttonPanel.add(deselectAllRecursiveButton);
 
         panel.add(title, BorderLayout.NORTH);
         panel.add(scrollPane, BorderLayout.CENTER);
@@ -189,26 +258,44 @@ public class ApiPreviewDialog extends DialogWrapper {
         if (dependencyGraph == null || isDisposed()) return;
 
         // 更新摘要
+        List<DependencyNode> directNodes = dependencyGraph.getDirectDependencyNodes();
+        List<DependencyNode> recursiveNodes = dependencyGraph.getRecursiveDependencyNodes();
+
         summaryLabel.setText(String.format(
-                "API: %s | 檔案數: %d | 行數: %d",
+                "API: %s | 總檔案數: %d（直接: %d, 遞迴: %d）| 行數: %d",
                 apiInfo.getMsgId(),
                 dependencyGraph.getTotalFileCount(),
+                directNodes.size(),
+                recursiveNodes.size(),
                 dependencyGraph.getTotalLineCount()
         ));
 
         if (isDisposed()) return;
 
-        // 使用 setItems() 批量更新（取代 clear + addItem 循環）
-        List<DependencyNode> nodes = dependencyGraph.getNodes();
-        fileList.setItems(nodes, node -> String.format("[%s] %s",
+        // 填充直接依賴列表
+        directFileList.setItems(directNodes, node -> String.format("[%s] %s",
                 node.getFileType().getChineseName(),
                 node.getDisplayName()));
 
         if (isDisposed()) return;
 
-        // 恢復選中狀態
-        for (DependencyNode node : nodes) {
-            fileList.setItemSelected(node, node.isSelected());
+        // 恢復直接依賴選中狀態
+        for (DependencyNode node : directNodes) {
+            directFileList.setItemSelected(node, node.isSelected());
+        }
+
+        if (isDisposed()) return;
+
+        // 填充遞迴依賴列表
+        recursiveFileList.setItems(recursiveNodes, node -> String.format("[%s] %s",
+                node.getFileType().getChineseName(),
+                node.getDisplayName()));
+
+        if (isDisposed()) return;
+
+        // 恢復遞迴依賴選中狀態（保留用戶的選擇，預設值已在 addRecursiveNode 時設定為 false）
+        for (DependencyNode node : recursiveNodes) {
+            recursiveFileList.setItemSelected(node, node.isSelected());
         }
 
         if (isDisposed()) return;
@@ -255,17 +342,36 @@ public class ApiPreviewDialog extends DialogWrapper {
     }
 
     /**
-     * 全選或取消全選
+     * 全選或取消全選直接依賴
      */
-    private void selectAll(boolean select) {
+    private void selectAllDirect(boolean select) {
         if (dependencyGraph == null || isDisposed()) return;
 
-        for (int i = 0; i < fileList.getItemsCount(); i++) {
+        for (int i = 0; i < directFileList.getItemsCount(); i++) {
             if (isDisposed()) return;
-            DependencyNode node = fileList.getItemAt(i);
+            DependencyNode node = directFileList.getItemAt(i);
             if (node != null) {
                 node.setSelected(select);
-                fileList.setItemSelected(node, select);
+                directFileList.setItemSelected(node, select);
+            }
+        }
+        if (!isDisposed()) {
+            updatePreview();
+        }
+    }
+
+    /**
+     * 全選或取消全選遞迴依賴
+     */
+    private void selectAllRecursive(boolean select) {
+        if (dependencyGraph == null || isDisposed()) return;
+
+        for (int i = 0; i < recursiveFileList.getItemsCount(); i++) {
+            if (isDisposed()) return;
+            DependencyNode node = recursiveFileList.getItemAt(i);
+            if (node != null) {
+                node.setSelected(select);
+                recursiveFileList.setItemSelected(node, select);
             }
         }
         if (!isDisposed()) {
