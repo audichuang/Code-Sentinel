@@ -1,0 +1,99 @@
+name: Build and Release Plugin
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 1.6.0)'
+        required: true
+        default: '1.6.0'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build Plugin
+        run: ./gradlew buildPlugin -Pdev.mode=false -PbuildSearchableOptions=true
+
+      - name: Get version from tag or input
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+            echo "TAG_NAME=v${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            VERSION=${GITHUB_REF#refs/tags/v}
+            echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+            echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Find built plugin
+        id: find_plugin
+        run: |
+          PLUGIN_PATH=$(find build/distributions -name "*.zip" | head -1)
+          echo "PLUGIN_PATH=$PLUGIN_PATH" >> $GITHUB_OUTPUT
+          PLUGIN_NAME=$(basename $PLUGIN_PATH)
+          echo "PLUGIN_NAME=$PLUGIN_NAME" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_version.outputs.TAG_NAME }}
+          name: Code Sentinel v${{ steps.get_version.outputs.VERSION }}
+          body: |
+            ## Code Sentinel v${{ steps.get_version.outputs.VERSION }}
+
+            ### 安裝方式
+            1. 下載下方的 `.zip` 檔案
+            2. 在 IntelliJ IDEA 中：`Settings` → `Plugins` → `⚙️` → `Install Plugin from Disk...`
+            3. 選擇下載的 `.zip` 檔案並重啟 IDE
+
+            ### v1.6.0 更新內容
+
+            **新功能**
+            - 🔍 **Search Everywhere API 搜尋整合** - 在 Shift+Shift 對話框中新增「APIs」分頁
+            - 📊 **API 依賴預覽增強** - 區分直接依賴與遞迴依賴檔案
+
+            **效能與穩定性**
+            - 🛡️ 修正執行緒安全問題（PSI ReadAction、EDT 模式）
+            - 🧹 修復多處記憶體洩漏
+            - ⚡ 優化快取清理機制
+
+            **建構系統**
+            - 升級 Gradle 至 9.2.1
+            - 升級 IntelliJ Platform Plugin 至 2.10.5
+
+            **程式碼品質**
+            - 重構內部類別名稱以提高可讀性
+          draft: false
+          prerelease: false
+          files: |
+            ${{ steps.find_plugin.outputs.PLUGIN_PATH }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-sentinel-plugin
+          path: build/distributions/*.zip
+          retention-days: 30
