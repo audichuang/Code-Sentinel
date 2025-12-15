@@ -1,7 +1,7 @@
 # Code Sentinel - IntelliJ IDEA Plugin Project Context
 
 ## 專案概述
-這是一個為 **國泰世華銀行（CathayBK）** 開發的 IntelliJ IDEA 插件，名為 **Code Sentinel**。主要用於確保 Java 程式碼品質、維護團隊編碼規範，並在提交前自動檢查程式碼問題。
+**Code Sentinel** 是一款 IntelliJ IDEA 插件，用於確保 Java 程式碼品質、維護團隊編碼規範，並在提交前自動檢查程式碼問題。
 
 ## 核心目標
 - 🎯 即時檢查程式碼規範（API 電文代號、Javadoc）

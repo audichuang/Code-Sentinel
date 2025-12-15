@@ -173,9 +173,9 @@ intellijPlatform {
         version.set(project.version.toString())
         
         vendor {
-            name.set("CathayBk")
-            email.set("support@cathaybk.com")
-            url.set("https://www.cathaybk.com")
+            name.set("AudiChuang")
+            email.set("audiapplication880208@gmail.com")
+            url.set("https://github.com/audichuang")
         }
         
         description.set("""
