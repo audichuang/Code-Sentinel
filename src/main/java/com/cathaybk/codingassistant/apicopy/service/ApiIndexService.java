@@ -15,7 +15,6 @@ import com.intellij.util.Query;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.lang.ref.SoftReference;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
@@ -55,7 +54,7 @@ public final class ApiIndexService implements Disposable {
     );
 
     private final Project project;
-    private final Map<String, SoftReference<ApiInfo>> apiCache = new ConcurrentHashMap<>();
+    private final Map<String, ApiInfo> apiCache = new ConcurrentHashMap<>();
     private volatile boolean indexed = false;
     private volatile long lastIndexTime = 0;
     private volatile long lastCleanupTime = 0;
@@ -83,9 +82,8 @@ public final class ApiIndexService implements Disposable {
             List<ApiInfo> results = new ArrayList<>();
             String lowerKeyword = keyword.toLowerCase();
 
-            for (Map.Entry<String, SoftReference<ApiInfo>> entry : apiCache.entrySet()) {
-                ApiInfo api = entry.getValue().get();
-                if (api != null && api.isValid()) {
+            for (ApiInfo api : apiCache.values()) {
+                if (api.isValid()) {
                     // 搜尋 MSGID
                     if (api.getMsgId().toLowerCase().contains(lowerKeyword)) {
                         results.add(api);
@@ -125,12 +123,9 @@ public final class ApiIndexService implements Disposable {
         ensureIndexed();
 
         return ReadAction.compute(() -> {
-            SoftReference<ApiInfo> ref = apiCache.get(msgId);
-            if (ref != null) {
-                ApiInfo api = ref.get();
-                if (api != null && api.isValid()) {
-                    return api;
-                }
+            ApiInfo api = apiCache.get(msgId);
+            if (api != null && api.isValid()) {
+                return api;
             }
             return null;
         });
@@ -145,24 +140,35 @@ public final class ApiIndexService implements Disposable {
 
         return ReadAction.compute(() -> {
             List<ApiInfo> results = new ArrayList<>();
-            for (SoftReference<ApiInfo> ref : apiCache.values()) {
-                ApiInfo api = ref.get();
-                if (api != null && api.isValid()) {
+            for (ApiInfo api : apiCache.values()) {
+                if (api.isValid()) {
                     results.add(api);
                 }
             }
             results.sort(Comparator.comparing(ApiInfo::getMsgId));
+            LOG.debug("getAllApis() 返回 " + results.size() + " 個有效 API (快取共 " + apiCache.size() + " 項)");
             return results;
         });
     }
 
     /**
-     * 重新建立索引
+     * 重新建立索引（原子操作）
      */
     public void reindex() {
-        indexed = false;
-        apiCache.clear();
-        ensureIndexed();
+        LOG.info("reindex() 開始，當前快取大小: " + apiCache.size());
+
+        // 先建立新索引
+        Map<String, ApiInfo> newCache = buildNewIndex();
+
+        // 原子替換
+        synchronized (this) {
+            apiCache.clear();
+            apiCache.putAll(newCache);
+            indexed = true;
+            lastIndexTime = System.currentTimeMillis();
+        }
+
+        LOG.info("reindex() 完成，新快取大小: " + apiCache.size());
     }
 
     /**
@@ -176,7 +182,38 @@ public final class ApiIndexService implements Disposable {
     }
 
     /**
-     * 建立 API 索引
+     * 建立新的 API 索引並返回（不影響現有快取）
+     */
+    @NotNull
+    private Map<String, ApiInfo> buildNewIndex() {
+        Map<String, ApiInfo> newCache = new ConcurrentHashMap<>();
+
+        try {
+            ReadAction.nonBlocking(() -> {
+                GlobalSearchScope scope = GlobalSearchScope.projectScope(project);
+                Query<PsiClass> query = AllClassesSearch.search(scope, project);
+
+                query.forEach(psiClass -> {
+                    if (isControllerClass(psiClass)) {
+                        indexControllerClassToMap(psiClass, newCache);
+                    }
+                    return true;
+                });
+                return null;
+            })
+            .inSmartMode(project)
+            .executeSynchronously();
+
+            LOG.info("buildNewIndex() 建立完成，共 " + newCache.size() + " 個 API");
+        } catch (Exception e) {
+            LOG.warn("建立 API 索引時發生錯誤: " + e.getMessage());
+        }
+
+        return newCache;
+    }
+
+    /**
+     * 建立 API 索引（用於 ensureIndexed）
      */
     private synchronized void buildIndex() {
         if (indexed && (System.currentTimeMillis() - lastIndexTime < INDEX_TTL)) {
@@ -184,28 +221,16 @@ public final class ApiIndexService implements Disposable {
         }
 
         LOG.info("開始建立 API 索引...");
-        apiCache.clear();
 
         try {
-            // 使用 nonBlocking ReadAction - 允許在背景執行慢操作，但同步等待完成
-            // inSmartMode() 會自動等待 IDE 索引完成後才執行
-            ReadAction.nonBlocking(() -> {
-                GlobalSearchScope scope = GlobalSearchScope.projectScope(project);
-                Query<PsiClass> query = AllClassesSearch.search(scope, project);
+            Map<String, ApiInfo> newCache = buildNewIndex();
 
-                query.forEach(psiClass -> {
-                    if (isControllerClass(psiClass)) {
-                        indexControllerClass(psiClass);
-                    }
-                    return true;
-                });
-                return null;
-            })
-            .inSmartMode(project)  // 確保在 smart mode 執行（會自動等待 dumb mode 結束）
-            .executeSynchronously();  // 同步等待完成
-
+            // 原子替換
+            apiCache.clear();
+            apiCache.putAll(newCache);
             indexed = true;
             lastIndexTime = System.currentTimeMillis();
+
             LOG.info("API 索引建立完成，共 " + apiCache.size() + " 個 API");
         } catch (Exception e) {
             LOG.warn("建立 API 索引時發生錯誤: " + e.getMessage());
@@ -213,9 +238,9 @@ public final class ApiIndexService implements Disposable {
     }
 
     /**
-     * 索引 Controller 類別
+     * 索引 Controller 類別到指定的 Map
      */
-    private void indexControllerClass(@NotNull PsiClass controller) {
+    private void indexControllerClassToMap(@NotNull PsiClass controller, @NotNull Map<String, ApiInfo> targetCache) {
         for (PsiMethod method : controller.getMethods()) {
             if (isApiMethod(method)) {
                 String msgId = extractMsgId(method);
@@ -232,7 +257,7 @@ public final class ApiIndexService implements Disposable {
 
                 ApiInfo apiInfo = new ApiInfo(
                         msgId, description, httpMethod, path, method, controller);
-                apiCache.put(msgId, new SoftReference<>(apiInfo));
+                targetCache.put(msgId, apiInfo);
             }
         }
     }
@@ -409,7 +434,7 @@ public final class ApiIndexService implements Disposable {
     }
 
     /**
-     * 清理已被 GC 回收或無效的 SoftReference 條目
+     * 清理無效的條目
      * 定期執行以防止無效條目累積
      */
     private void cleanupStaleEntries() {
@@ -423,13 +448,12 @@ public final class ApiIndexService implements Disposable {
         int beforeSize = apiCache.size();
         int removedCount = 0;
 
-        Iterator<Map.Entry<String, SoftReference<ApiInfo>>> iterator = apiCache.entrySet().iterator();
+        Iterator<Map.Entry<String, ApiInfo>> iterator = apiCache.entrySet().iterator();
         while (iterator.hasNext()) {
-            Map.Entry<String, SoftReference<ApiInfo>> entry = iterator.next();
-            SoftReference<ApiInfo> ref = entry.getValue();
-            ApiInfo api = ref.get();
-            // 移除已被 GC 回收或無效的條目
-            if (api == null || !api.isValid()) {
+            Map.Entry<String, ApiInfo> entry = iterator.next();
+            ApiInfo api = entry.getValue();
+            // 移除無效的條目
+            if (!api.isValid()) {
                 iterator.remove();
                 removedCount++;
             }
