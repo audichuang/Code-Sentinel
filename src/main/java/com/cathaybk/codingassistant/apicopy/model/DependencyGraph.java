@@ -256,40 +256,69 @@ public class DependencyGraph {
 
     /**
      * 生成所有選中檔案的合併內容
+     * 使用 ClipCode 兼容格式，支援 Paste and Restore Files 功能
      */
     @NotNull
     public String generateMergedContent() {
         StringBuilder sb = new StringBuilder();
 
-        sb.append("// ============================================================\n");
-        sb.append("// API: ").append(apiInfo.getMsgId()).append("\n");
-        if (apiInfo.getDescription() != null) {
-            sb.append("// Description: ").append(apiInfo.getDescription()).append("\n");
-        }
-        sb.append("// Total Files: ").append(getSelectedNodes().size()).append("\n");
-        sb.append("// ============================================================\n\n");
-
-        // 按類型分組輸出
+        boolean firstFile = true;
         for (ApiFileType type : ApiFileType.values()) {
             List<DependencyNode> typeNodes = getNodesByType(type);
             for (DependencyNode node : typeNodes) {
                 if (node.isSelected() && node.isValid()) {
-                    sb.append("// ").append("=".repeat(60)).append("\n");
-                    sb.append("// File: ").append(node.getDisplayName()).append("\n");
-                    sb.append("// Type: ").append(type.getChineseName()).append("\n");
-                    sb.append("// Path: ").append(node.getFilePath()).append("\n");
-                    sb.append("// ").append("=".repeat(60)).append("\n\n");
+                    // 檔案之間加空行
+                    if (!firstFile) {
+                        sb.append("\n");
+                    }
+                    firstFile = false;
+
+                    // ClipCode 格式: // file: <相對路徑>
+                    String relativePath = getRelativePath(node.getFilePath());
+                    sb.append("// file: ").append(relativePath).append("\n");
 
                     String content = node.getContent();
                     if (content != null) {
                         sb.append(content);
+                        // 確保內容以換行結尾
+                        if (!content.endsWith("\n")) {
+                            sb.append("\n");
+                        }
                     }
-                    sb.append("\n\n");
                 }
             }
         }
 
         return sb.toString();
+    }
+
+    /**
+     * 將絕對路徑轉換為相對路徑（ClipCode 兼容格式）
+     */
+    @NotNull
+    private String getRelativePath(@NotNull String absolutePath) {
+        // 統一使用正斜杠
+        String normalizedPath = absolutePath.replace('\\', '/');
+
+        // 嘗試找出專案相對路徑起點
+        String[] markers = {
+            "src/main/java/",
+            "src/main/resources/",
+            "src/test/java/",
+            "src/test/resources/",
+            "src/"
+        };
+
+        for (String marker : markers) {
+            int index = normalizedPath.indexOf(marker);
+            if (index >= 0) {
+                return normalizedPath.substring(index);
+            }
+        }
+
+        // 如果找不到標記，返回檔案名
+        int lastSlash = normalizedPath.lastIndexOf('/');
+        return lastSlash >= 0 ? normalizedPath.substring(lastSlash + 1) : normalizedPath;
     }
 
     /**
