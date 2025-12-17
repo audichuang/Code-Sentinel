@@ -11,11 +11,11 @@
 - 🔍 API 搜尋與依賴分析
 
 ## 技術棧
-- **IDE**: IntelliJ IDEA 2024.3 Ultimate
+- **IDE**: IntelliJ IDEA 2025.2 Ultimate
 - **Language**: Java 21 LTS
 - **Build Tool**: Gradle 9.2.1 with IntelliJ Platform Plugin 2.10.5
 - **Dependencies**: Lombok 1.18.38, Jackson 2.19.0
-- **Plugin Version**: 1.6.0
+- **Plugin Version**: 1.0.0
 
 ## 主要功能模組
 
@@ -53,7 +53,7 @@
 - `GitSettings`: 插件設定管理
 - `GitSettingsConfigurable`: 設定 UI 面板
 
-### 7. API 複製與搜尋 (API Copy) - v1.6.0 新增
+### 7. API 複製與搜尋 (API Copy)
 - `ApiIndexService`: API 索引服務，建立專案內 API 索引
 - `ApiCopyService`: API 複製服務
 - `ApiSearchToolWindowFactory`: API 搜尋工具視窗
@@ -67,7 +67,7 @@
 CathayBank-JavaCodeQuality/
 ├── src/main/
 │   ├── java/com/cathaybk/codingassistant/
-│   │   ├── apicopy/              # API 複製功能（v1.6.0 新增）
+│   │   ├── apicopy/              # API 複製功能
 │   │   │   ├── action/           # Action 類別
 │   │   │   ├── analysis/         # 依賴分析
 │   │   │   ├── model/            # 資料模型
@@ -93,14 +93,15 @@ CathayBank-JavaCodeQuality/
 └── GEMINI.md                     # Gemini 參考文件
 ```
 
-## 最新變更 (v1.6.0)
-1. ✅ **Search Everywhere API 搜尋整合** - 在 Shift+Shift 對話框中新增「APIs」分頁
-2. ✅ **支援 MSGID、路徑、描述的模糊搜尋** - 智能權重排序
-3. ✅ **API 依賴預覽增強** - 區分直接依賴與遞迴依賴檔案
-4. ✅ **執行緒安全修復** - PSI 存取加入 ReadAction 包裝
-5. ✅ **記憶體洩漏修復** - 強化 disposed 狀態檢查，優化快取清理
-6. ✅ **類別重構** - 重命名內部類別以提高可讀性
-7. ✅ **建構系統升級** - Gradle 9.2.1，IntelliJ Platform Plugin 2.10.5
+## 最新變更 (v1.0.0)
+**初始發布版本**，包含以下核心功能：
+
+1. ✅ **即時程式碼檢查** - API MsgID 格式驗證、Javadoc 檢查
+2. ✅ **提交前檢查守衛** - Git 分支狀態檢查、程式碼品質門檻
+3. ✅ **智能快速修復** - 一鍵生成 API ID、自動添加 Javadoc
+4. ✅ **API 搜尋與發現** - Search Everywhere 整合（Shift+Shift → APIs 分頁）
+5. ✅ **API 依賴複製** - 複製完整 API 程式碼及其所有依賴
+6. ✅ **高度可配置** - 可個別開關 Git 檢查、程式碼檢查、Javadoc 樣式
 
 ## 開發指南
 
@@ -150,7 +151,7 @@ CathayBank-JavaCodeQuality/
 ## 常見問題
 
 ### Q: 插件在大型專案中變慢？
-A: v1.5.0+ 已優化，檢查緩存機制和檔案變更檢測
+A: 已實作檢查緩存機制和檔案變更檢測，優化大型專案效能
 
 ### Q: 記憶體使用過高？
 A: 已實作 SoftReference 和低記憶體模式自動切換
@@ -168,13 +169,7 @@ A: 按 Shift+Shift 開啟 Search Everywhere，切換到「APIs」分頁
 - **GitHub**: https://github.com/audichuang
 
 ## 版本歷史
-- v1.6.0 (2024) - Search Everywhere API 整合、依賴預覽增強、執行緒安全修復
-- v1.5.0 - Service 電文代號支援與效能優化
-- v1.4.0 - 記憶體優化與資源管理改進
-- v1.3.0 - 插件更名為 Code Sentinel，新增可配置選項
-- v1.2.0 - Bean 註解功能支援
-- v1.1.0 - 效能優化
-- v1.0.0 - 初始版本
+- v1.0.0 (2024) - 初始發布版本，包含即時檢查、提交前守衛、快速修復、API 搜尋等完整功能
 
 ---
 *此文件供 Claude Code 參考，以快速理解專案架構與開發重點*
