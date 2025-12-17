@@ -3,6 +3,7 @@
     <name>Code Sentinel</name>
     <version>1.0.0</version>
     <vendor email="audiapplication880208@gmail.com" url="https://github.com/audichuang">AudiChuang</vendor>
+    <icon>/META-INF/pluginIcon.svg</icon>
 
     <description><![CDATA[Code Sentinel - Intelligent coding assistant and pre-commit guard for IntelliJ IDEA. Ensures code quality through real-time inspections, pre-commit checks, and smart quick fixes.
 
@@ -173,6 +174,7 @@
         <!-- ======================================== -->
         <toolWindow id="API 搜尋"
                     anchor="right"
+                    icon="/icons/sentinel.png"
                     factoryClass="com.cathaybk.codingassistant.apicopy.ui.ApiSearchToolWindowFactory"/>
 
         <!-- ======================================== -->
@@ -180,6 +182,7 @@
         <!-- ======================================== -->
         <toolWindow id="Code Sentinel 檢查"
                     anchor="bottom"
+                    icon="/icons/sentinel.png"
                     factoryClass="com.cathaybk.codingassistant.vcs.ProblemToolWindowFactory"
                     canCloseContents="true"/>
 
