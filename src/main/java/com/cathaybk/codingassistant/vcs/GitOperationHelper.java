@@ -7,6 +7,7 @@ import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.progress.Task;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.project.ProjectUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -103,7 +104,7 @@ public class GitOperationHelper {
     private boolean executeGitFetchWithTimeout(ProgressIndicator indicator) {
         LOG.info("執行 git fetch（超時機制）...");
 
-        VirtualFile projectDir = project.getBaseDir();
+        VirtualFile projectDir = ProjectUtil.guessProjectDir(project);
         if (projectDir == null) {
             LOG.warn("無法獲取項目根目錄");
             return false;
@@ -323,7 +324,7 @@ public class GitOperationHelper {
 
         LOG.info("檢查目標分支: " + String.join(", ", targetBranches));
 
-        VirtualFile projectDir = project.getBaseDir();
+        VirtualFile projectDir = ProjectUtil.guessProjectDir(project);
         if (projectDir == null) {
             LOG.warn("無法獲取項目根目錄");
             return behindBranches;
@@ -364,7 +365,7 @@ public class GitOperationHelper {
      */
     @Nullable
     public String getCurrentBranch() {
-        VirtualFile projectDir = project.getBaseDir();
+        VirtualFile projectDir = ProjectUtil.guessProjectDir(project);
         if (projectDir == null) {
             LOG.warn("無法獲取項目根目錄");
             return null;

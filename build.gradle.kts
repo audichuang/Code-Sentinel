@@ -179,28 +179,40 @@ intellijPlatform {
         }
         
         description.set("""
-            <html><body>
-            <h2>Code Sentinel: 您的智能編碼與提交守衛</h2>
-            <p>Code Sentinel 是一款專為 IntelliJ IDEA 設計的開發者助手插件，旨在通過<b>即時程式碼分析</b>和<b>提交前檢查</b>機制，全方位保障您的程式碼品質、統一團隊規範，並顯著提升開發與提交流程的效率。</p>
+            Code Sentinel - Intelligent coding assistant and pre-commit guard for IntelliJ IDEA. Ensures code quality through real-time inspections, pre-commit checks, and smart quick fixes.
+
+            <h2>Code Sentinel: Your Intelligent Coding and Commit Guard</h2>
+            <p>Code Sentinel is a developer assistant plugin designed for IntelliJ IDEA, providing <b>real-time code analysis</b> and <b>pre-commit checks</b> to ensure code quality, maintain team coding standards, and significantly improve development workflow efficiency.</p>
             <hr/>
-            <h3>核心功能</h3>
-            <b>🚀 即時檢查與快速修復:</b> <ul><li>規範哨兵: 即時捕捉不合規代碼。</li><li>智能修復: 提供 Quick Fix 建議。</li></ul>
-            <b>🛡️ 提交前守衛 (可選):</b> <ul><li>Git 分支檢查: 防過時提交。</li><li>程式碼品質門禁: 掃描變更。</li><li>問題看板: 清晰列出問題。</li><li>批量修復 ("Fix All"): 一鍵修正。</li></ul>
-            <b>💡 智能輔助:</b> <ul><li>Javadoc 生成器: 自動生成完整或最小 Javadoc。</li></ul>
+            <h3>Core Features</h3>
+            <b>Real-time Inspection and Quick Fixes:</b>
+            <ul>
+                <li><b>Code Standards Sentinel:</b> Instantly catches code that doesn't comply with predefined standards (e.g., API MsgID format, missing Javadoc).</li>
+                <li><b>Smart Fixes:</b> Provides context-aware quick fix suggestions (via Alt+Enter / Option+Enter).</li>
+            </ul>
+            <b>Pre-commit Guard (Optional):</b>
+            <ul>
+                <li><b>Git Branch Check:</b> Prevents commits based on outdated branches.</li>
+                <li><b>Code Quality Gate:</b> Scans pending changes for compliance.</li>
+                <li><b>Issue Dashboard:</b> Lists all detected issues clearly.</li>
+                <li><b>Batch Fix ("Fix All"):</b> One-click fix for all issues.</li>
+            </ul>
+            <b>Smart Assistance:</b>
+            <ul>
+                <li><b>Javadoc Generator:</b> Auto-generates complete or minimal Javadoc.</li>
+                <li><b>API Search:</b> Search APIs via Search Everywhere (Shift+Shift).</li>
+                <li><b>API Copy:</b> Copy complete API code with dependencies.</li>
+            </ul>
             <hr/>
-            <h3>高度可配置:</h3> <p>可在設定中開關 Git/程式碼檢查、選擇 Javadoc 風格、定義目標分支。</p>
-            <p>讓 Code Sentinel 成為您編碼過程中的得力助手和品質守護者！</p>
-            </body></html>
+            <h3>Highly Configurable</h3>
+            <p>Enable/disable Git checks, code inspections, choose Javadoc style, and define target branches in Settings.</p>
+            <p>Let Code Sentinel be your reliable assistant and quality guardian!</p>
         """)
 
         ideaVersion {
             sinceBuild.set(providers.gradleProperty("plugin.sinceBuild").orElse("231"))
-            // 動態控制 untilBuild
-            val untilBuildProperty = providers.gradleProperty("plugin.untilBuild")
-            if (untilBuildProperty.isPresent) {
-                untilBuild.set(untilBuildProperty)
-            }
-            // 不設定 untilBuild 表示無版本上限
+            // 明確不設定 untilBuild，支援所有未來版本
+            untilBuild.set(provider { null })
         }
         
         changeNotes.set("""

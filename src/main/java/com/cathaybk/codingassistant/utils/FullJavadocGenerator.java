@@ -36,7 +36,7 @@ public class FullJavadocGenerator {
 
         // 添加返回值標籤（如果方法不是 void）
         PsiType returnType = method.getReturnType();
-        if (returnType != null && !PsiType.VOID.equals(returnType)) {
+        if (returnType != null && !PsiTypes.voidType().equals(returnType)) {
             sb.append(" * @return \n");
         }
 

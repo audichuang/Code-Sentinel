@@ -17,6 +17,7 @@ public class ApiInfo {
     private final String description;
     private final String httpMethod;
     private final String path;
+    private final String moduleName;
     private final SmartPsiElementPointer<PsiMethod> methodPointer;
     private final SmartPsiElementPointer<PsiClass> controllerPointer;
 
@@ -25,11 +26,13 @@ public class ApiInfo {
                    @Nullable String httpMethod,
                    @Nullable String path,
                    @NotNull PsiMethod method,
-                   @NotNull PsiClass controller) {
+                   @NotNull PsiClass controller,
+                   @NotNull String moduleName) {
         this.msgId = msgId;
         this.description = description;
         this.httpMethod = httpMethod;
         this.path = path;
+        this.moduleName = moduleName;
         this.methodPointer = SmartPointerManager.getInstance(method.getProject())
                 .createSmartPsiElementPointer(method);
         this.controllerPointer = SmartPointerManager.getInstance(controller.getProject())
@@ -54,6 +57,11 @@ public class ApiInfo {
     @Nullable
     public String getPath() {
         return path;
+    }
+
+    @NotNull
+    public String getModuleName() {
+        return moduleName;
     }
 
     @Nullable
@@ -105,6 +113,7 @@ public class ApiInfo {
                 ", description='" + description + '\'' +
                 ", httpMethod='" + httpMethod + '\'' +
                 ", path='" + path + '\'' +
+                ", moduleName='" + moduleName + '\'' +
                 '}';
     }
 

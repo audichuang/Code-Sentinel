@@ -12,8 +12,7 @@ import com.intellij.psi.search.searches.ReferencesSearch;
 import com.intellij.psi.util.InheritanceUtil;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.PsiUtil;
-import com.intellij.util.Query;
-import org.apache.commons.lang3.StringUtils;
+import com.intellij.openapi.util.text.StringUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -94,8 +93,8 @@ public class ApiMsgIdUtil {
         }
         return Arrays.stream(method.getModifierList().getAnnotations())
                 .map(PsiAnnotation::getQualifiedName)
-                .filter(StringUtils::isNotEmpty)
-                .anyMatch(name -> StringUtils.endsWith(name, "Mapping"));
+                .filter(StringUtil::isNotEmpty)
+                .anyMatch(name -> StringUtil.endsWith(name, "Mapping"));
     }
 
     /**
@@ -131,13 +130,13 @@ public class ApiMsgIdUtil {
 
         // 3. 檢查類名後綴
         String className = psiClass.getName();
-        if (StringUtils.isNotEmpty(className) && StringUtils.endsWithIgnoreCase(className, "Controller")) {
+        if (StringUtil.isNotEmpty(className) && StringUtil.endsWithIgnoreCase(className, "Controller")) {
             return true;
         }
 
         // 4. 檢查包名區段 (較低優先級，可能不準確)
         String qualifiedName = psiClass.getQualifiedName();
-        if (StringUtils.isNotEmpty(qualifiedName)) {
+        if (StringUtil.isNotEmpty(qualifiedName)) {
             int lastDotIndex = qualifiedName.lastIndexOf('.');
             if (lastDotIndex != -1) {
                 String packageName = qualifiedName.substring(0, lastDotIndex);
@@ -172,7 +171,7 @@ public class ApiMsgIdUtil {
 
         // 2. 檢查類名後綴
         String className = psiClass.getName();
-        if (StringUtils.isNotEmpty(className)) {
+        if (StringUtil.isNotEmpty(className)) {
             String upperClassName = className.toUpperCase();
             if (upperClassName.endsWith("SERVICE") || upperClassName.endsWith("SVC")) {
                 return true;
@@ -181,7 +180,7 @@ public class ApiMsgIdUtil {
 
         // 3. 檢查包名區段
         String qualifiedName = psiClass.getQualifiedName();
-        if (StringUtils.isNotEmpty(qualifiedName)) {
+        if (StringUtil.isNotEmpty(qualifiedName)) {
             int lastDotIndex = qualifiedName.lastIndexOf('.');
             if (lastDotIndex != -1) {
                 String packageName = qualifiedName.substring(0, lastDotIndex);
@@ -226,7 +225,7 @@ public class ApiMsgIdUtil {
 
         // 3. 檢查命名慣例 + 實現的接口
         String className = psiClass.getName();
-        if (StringUtils.isNotEmpty(className) && StringUtils.endsWithIgnoreCase(className, "Impl")) {
+        if (StringUtil.isNotEmpty(className) && StringUtil.endsWithIgnoreCase(className, "Impl")) {
             // getInterfaces() 只返回直接實現的接口
             return Arrays.stream(psiClass.getInterfaces())
                     .anyMatch(ApiMsgIdUtil::isServiceInterface);
@@ -341,11 +340,11 @@ public class ApiMsgIdUtil {
 
         String methodNameUpper = method.getName().toUpperCase();
         // 處理類名簡寫為空的情況
-        String baseId = "API-" + (StringUtils.isEmpty(classNameAbbr) ? "UNKNOWN" : classNameAbbr) + "_"
+        String baseId = "API-" + (StringUtil.isEmpty(classNameAbbr) ? "UNKNOWN" : classNameAbbr) + "_"
                 + methodNameUpper;
 
         // 加上 Service 後綴（如果有的話）
-        String result = StringUtils.isEmpty(suffix) ? baseId : baseId + "_" + suffix;
+        String result = StringUtil.isEmpty(suffix) ? baseId : baseId + "_" + suffix;
 
         return result;
     }
@@ -672,8 +671,7 @@ public class ApiMsgIdUtil {
         if (isServiceInterface(serviceClass)) {
             SearchScope scope = serviceClass.getResolveScope();
             // 查找直接或間接繼承者 (true)
-            Query<PsiClass> implementations = ClassInheritorsSearch.search(serviceClass, scope, true);
-            for (PsiClass implClass : implementations) {
+            for (PsiClass implClass : ClassInheritorsSearch.search(serviceClass, scope, true).findAll()) {
                 if (isServiceImpl(implClass)) {
                     String implApiId = extractApiMsgId(implClass.getDocComment());
                     if (implApiId != null) {

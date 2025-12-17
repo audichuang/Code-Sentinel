@@ -4,48 +4,48 @@
     <version>1.6.0</version>
     <vendor email="audiapplication880208@gmail.com" url="https://github.com/audichuang">AudiChuang</vendor>
 
-    <description><![CDATA[
-    <html><body>
-    <h2>Code Sentinel: 您的智能編碼與提交守衛</h2>
-    <p>Code Sentinel 是一款專為 IntelliJ IDEA 設計的開發者助手插件，旨在通過<b>即時程式碼分析</b>和<b>提交前檢查</b>機制，全方位保障您的程式碼品質、統一團隊規範，並顯著提升開發與提交流程的效率。</p>
+    <description><![CDATA[Code Sentinel - Intelligent coding assistant and pre-commit guard for IntelliJ IDEA. Ensures code quality through real-time inspections, pre-commit checks, and smart quick fixes.
 
-    <hr/>
+<h2>Code Sentinel: Your Intelligent Coding and Commit Guard</h2>
+<p>Code Sentinel is a developer assistant plugin designed for IntelliJ IDEA, providing <b>real-time code analysis</b> and <b>pre-commit checks</b> to ensure code quality, maintain team coding standards, and significantly improve development workflow efficiency.</p>
 
-    <h3>核心功能</h3>
-    
-    <b>🚀 即時檢查與快速修復 (編碼時)</b>
-    <ul>
-        <li><b>規範哨兵:</b> 在您輸入時，即時捕捉不符合預設規範的程式碼（例如：API MsgID 格式、缺少 Javadoc 等）。</li>
-        <li><b>智能修復:</b> 對檢測到的問題提供上下文感知的快速修復建議 (Quick Fix via Alt+Enter / Option+Enter)，一鍵生成或修正程式碼。</li>
-    </ul>
+<hr/>
 
-    <b>🛡️ 提交前守衛 (Git Commit 時 - 可選)</b>
-    <ul>
-        <li><b>Git 分支檢查 (可選):</b> 自動執行 `git fetch` 並比對目標分支，防止基於過時分支提交，降低合併衝突風險。</li>
-        <li><b>程式碼品質門禁 (可選):</b> 全面掃描待提交的程式碼變更，確保符合團隊自訂的程式碼規範。</li>
-        <li><b>問題看板:</b> 在專用工具視窗 ("Code Sentinel 檢查") 清晰列出所有檢查發現的問題點，一目了然。</li>
-        <li><b>批量修復 ("Fix All"):</b> 提供強大的 "一鍵修復" 功能，嘗試自動修正所有可修復的問題，節省您的寶貴時間。</li>
-    </ul>
-    
-    <b>💡 智能輔助</b>
-    <ul>
-        <li><b>Javadoc 生成器 (可選):</b> 自動為方法或類別生成 Javadoc 註解。支持生成包含完整標籤 (<code>@param</code>, <code>@return</code>) 的結構，或僅包含核心描述的最小結構，可在設定中切換。</li>
-    </ul>
+<h3>Core Features</h3>
 
-    <hr/>
+<b>Real-time Inspection and Quick Fixes (While Coding)</b>
+<ul>
+    <li><b>Code Standards Sentinel:</b> Instantly catches code that doesn't comply with predefined standards (e.g., API MsgID format, missing Javadoc) as you type.</li>
+    <li><b>Smart Fixes:</b> Provides context-aware quick fix suggestions (via Alt+Enter / Option+Enter) for detected issues, generating or correcting code with one click.</li>
+</ul>
 
-    <h3>高度可配置</h3>
-    <p>您可以根據團隊或個人需求，在 <code>Settings &gt; Tools &gt; Code Sentinel 設定</code> 中靈活配置：</p>
-    <ul>
-        <li>啟用/禁用 Git 分支檢查</li>
-        <li>啟用/禁用提交前的程式碼規範檢查</li>
-        <li>選擇 Javadoc 的生成風格 (完整/最小)</li>
-        <li>設定需要檢查的目標分支</li>
-    </ul>
+<b>Pre-commit Guard (During Git Commit - Optional)</b>
+<ul>
+    <li><b>Git Branch Check:</b> Automatically runs git fetch and compares with target branch, preventing commits based on outdated branches and reducing merge conflict risks.</li>
+    <li><b>Code Quality Gate:</b> Comprehensively scans pending code changes to ensure compliance with team-defined coding standards.</li>
+    <li><b>Issue Dashboard:</b> Clearly lists all detected issues in a dedicated tool window ("Code Sentinel Inspection") for easy review.</li>
+    <li><b>Batch Fix ("Fix All"):</b> Provides powerful one-click fix functionality to automatically resolve all fixable issues, saving valuable time.</li>
+</ul>
 
-    <p>讓 Code Sentinel 成為您編碼過程中的得力助手和品質守護者！</p>
+<b>Smart Assistance</b>
+<ul>
+    <li><b>Javadoc Generator:</b> Automatically generates Javadoc comments for methods or classes. Supports generating complete structures with full tags (<code>@param</code>, <code>@return</code>) or minimal structures with core descriptions only, configurable in settings.</li>
+    <li><b>API Search:</b> Search and browse all APIs in your project via Search Everywhere (Shift+Shift) or the dedicated API Search tool window.</li>
+    <li><b>API Copy:</b> Copy complete API code including all dependencies to clipboard for easy sharing or documentation.</li>
+</ul>
 
-    </body></html>
+<hr/>
+
+<h3>Highly Configurable</h3>
+<p>Customize according to team or personal needs in <code>Settings &gt; Tools &gt; Code Sentinel</code>:</p>
+<ul>
+    <li>Enable/disable Git branch checking</li>
+    <li>Enable/disable pre-commit code standard checks</li>
+    <li>Choose Javadoc generation style (Full/Minimal)</li>
+    <li>Configure target branch for comparison</li>
+</ul>
+
+<p>Let Code Sentinel be your reliable assistant and quality guardian throughout your coding journey!</p>
     ]]></description>
 
     <change-notes><![CDATA[
@@ -213,6 +213,14 @@
         <toolWindow id="API 搜尋"
                     anchor="right"
                     factoryClass="com.cathaybk.codingassistant.apicopy.ui.ApiSearchToolWindowFactory"/>
+
+        <!-- ======================================== -->
+        <!-- 8. Code Sentinel 檢查結果工具視窗        -->
+        <!-- ======================================== -->
+        <toolWindow id="Code Sentinel 檢查"
+                    anchor="bottom"
+                    factoryClass="com.cathaybk.codingassistant.vcs.ProblemToolWindowFactory"
+                    canCloseContents="true"/>
 
         <!-- ======================================== -->
         <!-- 8. Search Everywhere API 搜尋整合        -->

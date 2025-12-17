@@ -159,6 +159,24 @@ public class GitSettings implements PersistentStateComponent<GitSettings.State> 
         myState.returnTypeDtoSuffix = suffix;
     }
 
+    // Module 過濾設定
+    public boolean isEnableModuleFiltering() {
+        return myState.enableModuleFiltering;
+    }
+
+    public void setEnableModuleFiltering(boolean enable) {
+        myState.enableModuleFiltering = enable;
+    }
+
+    @NotNull
+    public Set<String> getIndexedModules() {
+        return new HashSet<>(myState.indexedModules);
+    }
+
+    public void setIndexedModules(@NotNull Set<String> modules) {
+        myState.indexedModules = new HashSet<>(modules);
+    }
+
     public enum JavadocStyle {
         FULL, MINIMAL
     }
@@ -170,5 +188,8 @@ public class GitSettings implements PersistentStateComponent<GitSettings.State> 
         public JavadocStyle javadocStyle = JavadocStyle.FULL;
         public String parameterDtoSuffix = "上行";
         public String returnTypeDtoSuffix = "下行";
+        // Module 過濾設定
+        public boolean enableModuleFiltering = false;
+        public Set<String> indexedModules = new HashSet<>();
     }
 }

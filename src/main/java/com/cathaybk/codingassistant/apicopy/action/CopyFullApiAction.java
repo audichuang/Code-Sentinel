@@ -8,6 +8,8 @@ import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.editor.Editor;
+import com.intellij.openapi.module.Module;
+import com.intellij.openapi.module.ModuleUtil;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
 import com.intellij.psi.javadoc.PsiDocComment;
@@ -57,7 +59,13 @@ public class CopyFullApiAction extends AnAction {
         String description = extractDescription(method);
         String httpMethod = extractHttpMethod(method);
 
-        ApiInfo apiInfo = new ApiInfo(msgId, description, httpMethod, null, method, containingClass);
+        // 取得 Module 名稱
+        String moduleName = ReadAction.compute(() -> {
+            Module module = ModuleUtil.findModuleForPsiElement(method);
+            return module != null ? module.getName() : "Unknown";
+        });
+
+        ApiInfo apiInfo = new ApiInfo(msgId, description, httpMethod, null, method, containingClass, moduleName);
 
         // 顯示預覽對話框
         ApiPreviewDialog dialog = new ApiPreviewDialog(project, apiInfo);

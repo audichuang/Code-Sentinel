@@ -12,7 +12,6 @@ import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.codeInspection.ProblemHighlightType;
 import com.intellij.codeInspection.QuickFix;
-import com.intellij.icons.AllIcons;
 import com.intellij.lang.annotation.ProblemGroup;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
@@ -32,7 +31,6 @@ import com.intellij.openapi.vcs.changes.Change;
 import com.intellij.openapi.vcs.changes.ContentRevision;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.wm.ToolWindow;
-import com.intellij.openapi.wm.ToolWindowAnchor;
 import com.intellij.openapi.wm.ToolWindowManager;
 import com.intellij.psi.*;
 import com.intellij.psi.util.PsiTreeUtil;
@@ -370,21 +368,13 @@ public class ProblemCollector implements Disposable {
                 return;
             }
 
-            // 獲取或創建工具窗口
+            // 獲取已在 plugin.xml 中靜態註冊的工具窗口
             toolWindow = toolWindowManager.getToolWindow(TOOL_WINDOW_ID);
             if (toolWindow == null) {
-                // 使用現代的 ToolWindow API
-                toolWindow = toolWindowManager.registerToolWindow(
-                        TOOL_WINDOW_ID, 
-                        true, 
-                        ToolWindowAnchor.BOTTOM, 
-                        project, 
-                        true,
-                        false); // canWorkInDumbMode = false
-                toolWindow.setIcon(AllIcons.Toolwindows.Problems);
-                toolWindow.setStripeTitle("Code Sentinel");
-                toolWindow.setAvailable(true);
+                LOG.error("無法獲取工具窗口，請確認 plugin.xml 中已正確註冊 ID: " + TOOL_WINDOW_ID);
+                return;
             }
+            toolWindow.setAvailable(true);
 
             // 創建問題面板
             InspectionProblemsPanel problemsPanel = new InspectionProblemsPanel(project, problems);
@@ -800,16 +790,11 @@ public class ProblemCollector implements Disposable {
         // 在第 405 行將 panel 的生命週期綁定到 Content，IntelliJ 會自動管理
         currentProblemsPanel = null;
 
-        // 釋放工具窗口
+        // 釋放工具窗口內容（不取消註冊，因為是在 plugin.xml 中靜態註冊的）
         if (toolWindow != null) {
             toolWindow.getContentManager().removeAllContents(true);
-
-            // 正確 unregister ToolWindow，避免資源洩漏
-            ToolWindowManager toolWindowManager = ToolWindowManager.getInstance(project);
-            if (toolWindowManager != null) {
-                toolWindowManager.unregisterToolWindow(TOOL_WINDOW_ID);
-            }
-
+            // 設定為不可用（隱藏），但不取消註冊
+            toolWindow.setAvailable(false);
             toolWindow = null;
         }
 

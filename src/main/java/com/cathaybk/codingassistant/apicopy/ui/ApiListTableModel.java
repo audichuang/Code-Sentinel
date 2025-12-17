@@ -11,11 +11,13 @@ import java.util.List;
  */
 public class ApiListTableModel extends AbstractTableModel {
 
-    private static final String[] COLUMN_NAMES = {"MSGID", "描述", "HTTP 方法", "路徑"};
+    // 欄位順序：MSGID, 描述, 路徑, Module, HTTP（HTTP 移到最後）
+    private static final String[] COLUMN_NAMES = {"MSGID", "描述", "路徑", "Module", "HTTP"};
     private static final int COL_MSG_ID = 0;
     private static final int COL_DESCRIPTION = 1;
-    private static final int COL_HTTP_METHOD = 2;
-    private static final int COL_PATH = 3;
+    private static final int COL_PATH = 2;
+    private static final int COL_MODULE = 3;
+    private static final int COL_HTTP_METHOD = 4;
 
     private final List<ApiInfo> apis = new ArrayList<>();
 
@@ -52,10 +54,12 @@ public class ApiListTableModel extends AbstractTableModel {
             case COL_DESCRIPTION:
                 String desc = api.getDescription();
                 return desc != null ? truncate(desc, 50) : "";
-            case COL_HTTP_METHOD:
-                return api.getHttpMethod() != null ? api.getHttpMethod() : "";
             case COL_PATH:
                 return api.getPath() != null ? api.getPath() : "";
+            case COL_MODULE:
+                return api.getModuleName();
+            case COL_HTTP_METHOD:
+                return api.getHttpMethod() != null ? api.getHttpMethod() : "";
             default:
                 return "";
         }

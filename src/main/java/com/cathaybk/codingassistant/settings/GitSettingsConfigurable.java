@@ -1,5 +1,6 @@
 package com.cathaybk.codingassistant.settings;
 
+import com.cathaybk.codingassistant.apicopy.service.ApiIndexService;
 import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.options.SearchableConfigurable;
@@ -10,6 +11,7 @@ import com.intellij.openapi.project.ProjectManager;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.ui.IdeBorderFactory;
 import com.intellij.ui.components.JBLabel;
+import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.JBTextField;
 import com.intellij.util.ui.JBUI;
 import org.jetbrains.annotations.Nls;
@@ -19,9 +21,8 @@ import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.awt.event.ActionListener;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.List;
-import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
@@ -81,6 +82,15 @@ public class GitSettingsConfigurable implements SearchableConfigurable {
 
     /** Git 重置按鈕的 ActionListener */
     private ActionListener gitResetListener;
+
+    /** Module 過濾啟用複選框 */
+    private JCheckBox enableModuleFilteringCheckbox;
+
+    /** Module 選擇列表面板 */
+    private JPanel moduleListPanel;
+
+    /** Module 複選框映射 */
+    private Map<String, JCheckBox> moduleCheckBoxes = new HashMap<>();
 
     /** Git 分支名稱的非法字符正則表達式 */
     private static final Pattern INVALID_BRANCH_CHARS = Pattern.compile(".*[~^:?*\\[\\\\].*");
@@ -326,6 +336,11 @@ public class GitSettingsConfigurable implements SearchableConfigurable {
         myMainPanel.add(codeQualityPanel, gbc);
         gbc.gridy++;
 
+        // --- API Module 過濾設定區塊 ---
+        JPanel moduleFilterPanel = createModuleFilterPanel();
+        myMainPanel.add(moduleFilterPanel, gbc);
+        gbc.gridy++;
+
         // --- DTO 後綴設定區塊 ---
         JPanel dtoSuffixPanel = new JPanel(new GridBagLayout());
         dtoSuffixPanel.setBorder(IdeBorderFactory.createTitledBorder("DTO 電文代號後綴設定", true));
@@ -408,6 +423,86 @@ public class GitSettingsConfigurable implements SearchableConfigurable {
     }
 
     /**
+     * 創建 Module 過濾設定面板
+     *
+     * @return Module 過濾設定面板
+     */
+    private JPanel createModuleFilterPanel() {
+        JPanel panel = createPanelWithBorder("API Module 過濾設定");
+        panel.setLayout(new BorderLayout());
+
+        // 啟用複選框
+        enableModuleFilteringCheckbox = new JCheckBox("啟用 API 索引 Module 過濾");
+        enableModuleFilteringCheckbox.setOpaque(false);
+        enableModuleFilteringCheckbox.setToolTipText("若啟用，只索引選中的 Module 中的 API。");
+        enableModuleFilteringCheckbox.setBorder(JBUI.Borders.emptyBottom(8));
+        panel.add(enableModuleFilteringCheckbox, BorderLayout.NORTH);
+
+        // Module 列表
+        moduleListPanel = new JPanel();
+        moduleListPanel.setLayout(new BoxLayout(moduleListPanel, BoxLayout.Y_AXIS));
+        moduleListPanel.setOpaque(false);
+
+        // 載入 Module 列表
+        refreshModuleList();
+
+        JBScrollPane scrollPane = new JBScrollPane(moduleListPanel);
+        scrollPane.setPreferredSize(new Dimension(300, 120));
+        scrollPane.setBorder(BorderFactory.createLineBorder(UIManager.getColor("Component.borderColor")));
+
+        JPanel moduleContainer = new JPanel(new BorderLayout());
+        moduleContainer.setOpaque(false);
+        moduleContainer.add(new JLabel("選擇要索引的 Module:"), BorderLayout.NORTH);
+        moduleContainer.add(scrollPane, BorderLayout.CENTER);
+        moduleContainer.setBorder(JBUI.Borders.emptyTop(4));
+
+        panel.add(moduleContainer, BorderLayout.CENTER);
+
+        // 啟用/禁用聯動
+        enableModuleFilteringCheckbox.addActionListener(e -> {
+            boolean enabled = enableModuleFilteringCheckbox.isSelected();
+            for (JCheckBox cb : moduleCheckBoxes.values()) {
+                cb.setEnabled(enabled);
+            }
+        });
+
+        return panel;
+    }
+
+    /**
+     * 重新整理 Module 列表
+     */
+    private void refreshModuleList() {
+        moduleListPanel.removeAll();
+        moduleCheckBoxes.clear();
+
+        if (project != null) {
+            ApiIndexService indexService = ApiIndexService.getInstance(project);
+            List<String> modules = indexService.getAvailableModules();
+
+            for (String moduleName : modules) {
+                JCheckBox cb = new JCheckBox(moduleName, true);
+                cb.setOpaque(false);
+                moduleCheckBoxes.put(moduleName, cb);
+                moduleListPanel.add(cb);
+            }
+
+            if (modules.isEmpty()) {
+                JLabel noModulesLabel = new JLabel("（未偵測到 Module）");
+                noModulesLabel.setForeground(UIManager.getColor("Label.disabledForeground"));
+                moduleListPanel.add(noModulesLabel);
+            }
+        } else {
+            JLabel noProjectLabel = new JLabel("（無專案）");
+            noProjectLabel.setForeground(UIManager.getColor("Label.disabledForeground"));
+            moduleListPanel.add(noProjectLabel);
+        }
+
+        moduleListPanel.revalidate();
+        moduleListPanel.repaint();
+    }
+
+    /**
      * 配置示例文本區域的外觀
      *
      * @param textArea 要配置的文本區域
@@ -440,6 +535,7 @@ public class GitSettingsConfigurable implements SearchableConfigurable {
             generateFullJavadocCheckbox.setSelected(true);
             checkGitBranchCheckbox.setSelected(true);
             checkCodeQualityCheckbox.setSelected(true); // 預設勾選
+            enableModuleFilteringCheckbox.setSelected(false);
             return;
         }
 
@@ -452,6 +548,16 @@ public class GitSettingsConfigurable implements SearchableConfigurable {
         // 新增 DTO 後綴重置
         parameterDtoSuffixField.setText(settings.getParameterDtoSuffix());
         returnTypeDtoSuffixField.setText(settings.getReturnTypeDtoSuffix());
+
+        // 載入 Module 過濾設定
+        enableModuleFilteringCheckbox.setSelected(settings.isEnableModuleFiltering());
+        Set<String> indexedModules = settings.getIndexedModules();
+        for (Map.Entry<String, JCheckBox> entry : moduleCheckBoxes.entrySet()) {
+            // 若 indexedModules 為空，預設全選；否則按設定值選擇
+            boolean selected = indexedModules.isEmpty() || indexedModules.contains(entry.getKey());
+            entry.getValue().setSelected(selected);
+            entry.getValue().setEnabled(settings.isEnableModuleFiltering());
+        }
     }
 
     /**
@@ -466,7 +572,8 @@ public class GitSettingsConfigurable implements SearchableConfigurable {
             boolean javadocModified = generateFullJavadocCheckbox.isSelected() != true;
             boolean gitCheckModified = checkGitBranchCheckbox.isSelected() != true;
             boolean codeQualityModified = checkCodeQualityCheckbox.isSelected() != true;
-            return branchesModified || javadocModified || gitCheckModified || codeQualityModified;
+            boolean moduleFilterModified = enableModuleFilteringCheckbox.isSelected() != false;
+            return branchesModified || javadocModified || gitCheckModified || codeQualityModified || moduleFilterModified;
         }
 
         GitSettings settings = GitSettings.getInstance(project);
@@ -478,7 +585,42 @@ public class GitSettingsConfigurable implements SearchableConfigurable {
         boolean dtoSuffixModified = !Objects.equals(settings.getParameterDtoSuffix(), parameterDtoSuffixField.getText())
                 ||
                 !Objects.equals(settings.getReturnTypeDtoSuffix(), returnTypeDtoSuffixField.getText());
-        return branchesModified || javadocModified || gitCheckModified || codeQualityModified || dtoSuffixModified;
+
+        // 檢查 Module 過濾設定是否被修改
+        boolean moduleFilterModified = enableModuleFilteringCheckbox.isSelected() != settings.isEnableModuleFiltering();
+        boolean moduleSelectionModified = isModuleSelectionModified(settings);
+
+        return branchesModified || javadocModified || gitCheckModified || codeQualityModified
+                || dtoSuffixModified || moduleFilterModified || moduleSelectionModified;
+    }
+
+    /**
+     * 檢查 Module 選擇是否被修改
+     */
+    private boolean isModuleSelectionModified(GitSettings settings) {
+        Set<String> savedModules = settings.getIndexedModules();
+        Set<String> currentModules = getSelectedModules();
+
+        // 若 savedModules 為空，表示預設全選
+        if (savedModules.isEmpty()) {
+            // 只有當有 Module 未選中時才算修改
+            return currentModules.size() != moduleCheckBoxes.size();
+        }
+
+        return !savedModules.equals(currentModules);
+    }
+
+    /**
+     * 取得目前選中的 Module
+     */
+    private Set<String> getSelectedModules() {
+        Set<String> selected = new HashSet<>();
+        for (Map.Entry<String, JCheckBox> entry : moduleCheckBoxes.entrySet()) {
+            if (entry.getValue().isSelected()) {
+                selected.add(entry.getKey());
+            }
+        }
+        return selected;
     }
 
     /**
@@ -552,6 +694,10 @@ public class GitSettingsConfigurable implements SearchableConfigurable {
         // 新增 DTO 後綴保存
         settings.setParameterDtoSuffix(parameterDtoSuffixField.getText());
         settings.setReturnTypeDtoSuffix(returnTypeDtoSuffixField.getText());
+
+        // 保存 Module 過濾設定
+        settings.setEnableModuleFiltering(enableModuleFilteringCheckbox.isSelected());
+        settings.setIndexedModules(getSelectedModules());
     }
 
     /**
@@ -574,7 +720,7 @@ public class GitSettingsConfigurable implements SearchableConfigurable {
             gitResetButton.removeActionListener(gitResetListener);
             gitResetListener = null;
         }
-        
+
         // 清理所有 UI 元件參考
         myMainPanel = null;
         targetBranchesField = null;
@@ -587,6 +733,10 @@ public class GitSettingsConfigurable implements SearchableConfigurable {
         parameterDtoSuffixField = null;
         returnTypeDtoSuffixField = null;
         gitResetButton = null;
+        // 釋放 Module 過濾 UI 資源
+        enableModuleFilteringCheckbox = null;
+        moduleListPanel = null;
+        moduleCheckBoxes.clear();
     }
 
     /**

@@ -21,7 +21,9 @@ import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import java.awt.*;
 import java.awt.event.*;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * API 搜尋工具視窗
@@ -39,9 +41,13 @@ public class ApiSearchToolWindow implements Disposable {
     private JButton copyButton;
     private JButton previewButton;
     private JButton refreshButton;
+    private JComboBox<String> moduleFilterCombo;
 
     private Timer searchDebounceTimer;
     private static final int SEARCH_DEBOUNCE_MS = 300;
+
+    // 儲存所有 API 用於 Module 過濾
+    private List<ApiInfo> allApis = new ArrayList<>();
 
     public ApiSearchToolWindow(@NotNull Project project, @NotNull ToolWindow toolWindow) {
         this.project = project;
@@ -80,17 +86,70 @@ public class ApiSearchToolWindow implements Disposable {
             }
         });
 
+        // Module 過濾下拉選單
+        moduleFilterCombo = new JComboBox<>();
+        moduleFilterCombo.addItem("全部 Module");
+        refreshModuleCombo();
+        moduleFilterCombo.addActionListener(e -> filterByModule());
+
         // 重新整理按鈕
         refreshButton = new JButton("重新索引");
         refreshButton.addActionListener(e -> refreshIndex());
 
+        // 右側工具列
+        JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
+        rightPanel.add(new JLabel("Module:"));
+        rightPanel.add(moduleFilterCombo);
+        rightPanel.add(refreshButton);
+
         JPanel searchPanel = new JPanel(new BorderLayout(5, 0));
         searchPanel.add(new JLabel("搜尋 API: "), BorderLayout.WEST);
         searchPanel.add(searchField, BorderLayout.CENTER);
-        searchPanel.add(refreshButton, BorderLayout.EAST);
+        searchPanel.add(rightPanel, BorderLayout.EAST);
 
         panel.add(searchPanel, BorderLayout.CENTER);
         return panel;
+    }
+
+    /**
+     * 重新整理 Module 下拉選單
+     */
+    private void refreshModuleCombo() {
+        String currentSelection = (String) moduleFilterCombo.getSelectedItem();
+
+        moduleFilterCombo.removeAllItems();
+        moduleFilterCombo.addItem("全部 Module");
+
+        ApiIndexService indexService = ApiIndexService.getInstance(project);
+        for (String module : indexService.getAvailableModules()) {
+            moduleFilterCombo.addItem(module);
+        }
+
+        // 恢復之前的選擇
+        if (currentSelection != null) {
+            moduleFilterCombo.setSelectedItem(currentSelection);
+        }
+    }
+
+    /**
+     * 按 Module 過濾 API
+     */
+    private void filterByModule() {
+        String selected = (String) moduleFilterCombo.getSelectedItem();
+
+        if ("全部 Module".equals(selected) || selected == null) {
+            // 顯示全部
+            tableModel.setApis(allApis);
+            statusLabel.setText("共 " + allApis.size() + " 個 API");
+        } else {
+            // 過濾特定 Module
+            List<ApiInfo> filtered = allApis.stream()
+                    .filter(api -> api.getModuleName().equals(selected))
+                    .collect(Collectors.toList());
+            tableModel.setApis(filtered);
+            statusLabel.setText("顯示 " + filtered.size() + " 個 API（共 " + allApis.size() + " 個）");
+        }
+        updateButtonState();
     }
 
     private JPanel createTablePanel() {
@@ -101,11 +160,12 @@ public class ApiSearchToolWindow implements Disposable {
         apiTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         apiTable.setRowHeight(25);
 
-        // 設定欄位寬度
+        // 設定欄位寬度（順序：MSGID, 描述, 路徑, Module, HTTP）
         apiTable.getColumnModel().getColumn(0).setPreferredWidth(150);  // MSGID
-        apiTable.getColumnModel().getColumn(1).setPreferredWidth(250);  // 描述
-        apiTable.getColumnModel().getColumn(2).setPreferredWidth(80);   // HTTP 方法
-        apiTable.getColumnModel().getColumn(3).setPreferredWidth(200);  // 路徑
+        apiTable.getColumnModel().getColumn(1).setPreferredWidth(200);  // 描述
+        apiTable.getColumnModel().getColumn(2).setPreferredWidth(180);  // 路徑
+        apiTable.getColumnModel().getColumn(3).setPreferredWidth(120);  // Module
+        apiTable.getColumnModel().getColumn(4).setPreferredWidth(60);   // HTTP
 
         // 雙擊跳轉到原始碼
         apiTable.addMouseListener(new MouseAdapter() {
@@ -175,6 +235,7 @@ public class ApiSearchToolWindow implements Disposable {
      */
     private void performSearch() {
         String keyword = searchField.getText().trim();
+        String selectedModule = (String) moduleFilterCombo.getSelectedItem();
         statusLabel.setText("搜尋中...");
 
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
@@ -187,10 +248,26 @@ public class ApiSearchToolWindow implements Disposable {
                 results = indexService.searchApis(keyword);
             }
 
+            // 套用 Module 過濾
+            final List<ApiInfo> filteredResults;
+            if (!"全部 Module".equals(selectedModule) && selectedModule != null) {
+                filteredResults = results.stream()
+                        .filter(api -> api.getModuleName().equals(selectedModule))
+                        .collect(Collectors.toList());
+            } else {
+                filteredResults = results;
+            }
+
             ApplicationManager.getApplication().invokeLater(() -> {
                 if (!project.isDisposed()) {
-                    tableModel.setApis(results);
-                    statusLabel.setText("找到 " + results.size() + " 個 API");
+                    allApis = new ArrayList<>(results);
+                    tableModel.setApis(filteredResults);
+
+                    if (filteredResults.size() == results.size()) {
+                        statusLabel.setText("找到 " + results.size() + " 個 API");
+                    } else {
+                        statusLabel.setText("找到 " + filteredResults.size() + " 個 API（共 " + results.size() + " 個）");
+                    }
                     updateButtonState();
                 }
             }, ModalityState.defaultModalityState());
@@ -205,12 +282,13 @@ public class ApiSearchToolWindow implements Disposable {
 
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
             ApiIndexService indexService = ApiIndexService.getInstance(project);
-            List<ApiInfo> allApis = indexService.getAllApis();
+            List<ApiInfo> apis = indexService.getAllApis();
 
             ApplicationManager.getApplication().invokeLater(() -> {
                 if (!project.isDisposed()) {
-                    tableModel.setApis(allApis);
-                    statusLabel.setText("共 " + allApis.size() + " 個 API");
+                    allApis = new ArrayList<>(apis);
+                    refreshModuleCombo();
+                    filterByModule();  // 套用目前 Module 過濾
                 }
             }, ModalityState.defaultModalityState());
         });
@@ -226,11 +304,13 @@ public class ApiSearchToolWindow implements Disposable {
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
             ApiIndexService indexService = ApiIndexService.getInstance(project);
             indexService.reindex();
-            List<ApiInfo> allApis = indexService.getAllApis();
+            List<ApiInfo> apis = indexService.getAllApis();
 
             ApplicationManager.getApplication().invokeLater(() -> {
                 if (!project.isDisposed()) {
-                    tableModel.setApis(allApis);
+                    allApis = new ArrayList<>(apis);
+                    refreshModuleCombo();
+                    filterByModule();  // 套用目前 Module 過濾
                     statusLabel.setText("索引完成，共 " + allApis.size() + " 個 API");
                     refreshButton.setEnabled(true);
                 }

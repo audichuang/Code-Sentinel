@@ -11,7 +11,6 @@ import com.intellij.codeInspection.LocalQuickFix;
 import com.intellij.codeInspection.ProblemDescriptor;
 import com.intellij.codeInspection.ProblemHighlightType;
 import com.intellij.codeInspection.QuickFix;
-import com.intellij.icons.AllIcons;
 import com.intellij.lang.annotation.ProblemGroup;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
@@ -30,7 +29,6 @@ import com.intellij.openapi.vcs.CheckinProjectPanel;
 import com.intellij.openapi.vcs.changes.Change;
 import com.intellij.openapi.vcs.checkin.CheckinHandler;
 import com.intellij.openapi.wm.ToolWindow;
-import com.intellij.openapi.wm.ToolWindowAnchor;
 import com.intellij.openapi.wm.ToolWindowManager;
 import com.intellij.psi.*;
 import com.intellij.psi.util.PsiTreeUtil;
@@ -217,14 +215,14 @@ public class PreCommitInspectionHandler extends CheckinHandler implements Dispos
 
     private void showProblemsInToolWindow(Project project, List<ProblemInfo> problems) {
         ToolWindowManager toolWindowManager = ToolWindowManager.getInstance(project);
+        // 獲取已在 plugin.xml 中靜態註冊的工具窗口
         ToolWindow toolWindow = toolWindowManager.getToolWindow(TOOL_WINDOW_ID);
 
         if (toolWindow == null) {
-            toolWindow = toolWindowManager.registerToolWindow(TOOL_WINDOW_ID, true, ToolWindowAnchor.BOTTOM, project,
-                    true);
-            toolWindow.setIcon(AllIcons.General.InspectionsEye);
-            toolWindow.setStripeTitle(SETTING_TITLE_NAME);
+            LOG.error("無法獲取工具窗口，請確認 plugin.xml 中已正確註冊 ID: " + TOOL_WINDOW_ID);
+            return;
         }
+        toolWindow.setAvailable(true);
 
         currentProblemsPanel = new InspectionProblemsPanel(project, problems);
 

@@ -1,10 +1,13 @@
 package com.cathaybk.codingassistant.apicopy.service;
 
 import com.cathaybk.codingassistant.apicopy.model.ApiInfo;
+import com.cathaybk.codingassistant.settings.GitSettings;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.module.Module;
+import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Disposer;
 import com.intellij.psi.*;
@@ -19,6 +22,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * API 索引服務
@@ -68,6 +72,20 @@ public final class ApiIndexService implements Disposable {
     public ApiIndexService(@NotNull Project project) {
         this.project = project;
         Disposer.register(project, this);
+    }
+
+    /**
+     * 取得專案所有可用的 Module
+     */
+    @NotNull
+    public List<String> getAvailableModules() {
+        return ReadAction.compute(() -> {
+            Module[] modules = ModuleManager.getInstance(project).getModules();
+            return Arrays.stream(modules)
+                    .map(Module::getName)
+                    .sorted()
+                    .collect(Collectors.toList());
+        });
     }
 
     /**
@@ -183,22 +201,39 @@ public final class ApiIndexService implements Disposable {
 
     /**
      * 建立新的 API 索引並返回（不影響現有快取）
+     * 支援按 Module 過濾
      */
     @NotNull
     private Map<String, ApiInfo> buildNewIndex() {
         Map<String, ApiInfo> newCache = new ConcurrentHashMap<>();
 
         try {
-            ReadAction.nonBlocking(() -> {
-                GlobalSearchScope scope = GlobalSearchScope.projectScope(project);
-                Query<PsiClass> query = AllClassesSearch.search(scope, project);
+            GitSettings settings = GitSettings.getInstance(project);
+            boolean filterEnabled = settings.isEnableModuleFiltering();
+            Set<String> targetModules = filterEnabled ? settings.getIndexedModules() : null;
 
-                query.forEach(psiClass -> {
-                    if (isControllerClass(psiClass)) {
-                        indexControllerClassToMap(psiClass, newCache);
+            ReadAction.nonBlocking(() -> {
+                Module[] modules = ModuleManager.getInstance(project).getModules();
+
+                for (Module module : modules) {
+                    String moduleName = module.getName();
+
+                    // 如果啟用過濾且 Module 不在目標列表中，跳過
+                    if (targetModules != null && !targetModules.isEmpty() && !targetModules.contains(moduleName)) {
+                        LOG.debug("跳過 Module: " + moduleName);
+                        continue;
                     }
-                    return true;
-                });
+
+                    GlobalSearchScope scope = GlobalSearchScope.moduleScope(module);
+                    Query<PsiClass> query = AllClassesSearch.search(scope, project);
+
+                    query.forEach(psiClass -> {
+                        if (isControllerClass(psiClass)) {
+                            indexControllerClassToMap(psiClass, newCache, moduleName);
+                        }
+                        return true;
+                    });
+                }
                 return null;
             })
             .inSmartMode(project)
@@ -240,7 +275,9 @@ public final class ApiIndexService implements Disposable {
     /**
      * 索引 Controller 類別到指定的 Map
      */
-    private void indexControllerClassToMap(@NotNull PsiClass controller, @NotNull Map<String, ApiInfo> targetCache) {
+    private void indexControllerClassToMap(@NotNull PsiClass controller,
+                                            @NotNull Map<String, ApiInfo> targetCache,
+                                            @NotNull String moduleName) {
         for (PsiMethod method : controller.getMethods()) {
             if (isApiMethod(method)) {
                 String msgId = extractMsgId(method);
@@ -256,7 +293,7 @@ public final class ApiIndexService implements Disposable {
                 String path = extractPath(method, controller);
 
                 ApiInfo apiInfo = new ApiInfo(
-                        msgId, description, httpMethod, path, method, controller);
+                        msgId, description, httpMethod, path, method, controller, moduleName);
                 targetCache.put(msgId, apiInfo);
             }
         }
